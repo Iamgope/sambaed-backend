@@ -43,6 +43,7 @@ DEFAULT_INSTALLED_APPS = [
 
 THIRD_PARTY_INSTALLED_APPS = [
     'rest_framework',
+    "simple_jwt",
 ]
 
 LOCAL_INSTALLED_APPS = [
@@ -137,3 +138,14 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Google OAuth settings
+GOOGLE_OAUTH_CONFIG = {
+    "GOOGLE_OAUTH_CLIENT_ID": os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
+    "GOOGLE_OAUTH_CLIENT_SECRET": os.getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
+    "GOOGLE_OAUTH_CALLBACK_URL": os.getenv("GOOGLE_OAUTH_CALLBACK_URL"),
+    "GOOGLE_AUTHORIZATION_URL": os.getenv("GOOGLE_AUTHORIZATION_URL"),
+    "GOOGLE_ACCESS_TOKEN_OBTAIN_URL": os.getenv("GOOGLE_ACCESS_TOKEN_OBTAIN_URL"),
+    "GOOGLE_USER_INFO_URL": os.getenv("GOOGLE_USER_INFO_URL"),
+    "GOOGLE_ID_TOKEN_INFO_URL": os.getenv("GOOGLE_ID_TOKEN_INFO_URL"),
+}
