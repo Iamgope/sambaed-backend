@@ -1,32 +1,24 @@
-from enum import Enum
-
-class DebateStatus(Enum):
-    MATCHED = 'MATCHED'
-    ONGOING = 'ONGOING'
-    JUDGING = 'JUDGING'
-    COMPLETED = 'COMPLETED'
-    DISPUTED = 'DISPUTED'
-
-    @property
-    def label(self):
-        return [(item.value, item.name) for item in self]
+from django.db import models
 
 
-class RoundType(Enum):
-    OPENING = 'OPENING'
-    REBUTTAL = 'REBUTTAL'
-    CLOSING = 'CLOSING'
-
-    @property
-    def label(self):
-        return [(item.value, item.name) for item in self]
+class DebateStatus(models.TextChoices):
+    MATCHED = 'MATCHED', 'Matched'
+    ONGOING = 'ONGOING', 'Ongoing'
+    JUDGING = 'JUDGING', 'Judging'
+    COMPLETED = 'COMPLETED', 'Completed'
+    DISPUTED = 'DISPUTED', 'Disputed'
 
 
-class MatchQueueStatus(Enum):
-    PENDING = 'PENDING'
-    MATCHED = 'MATCHED'
-    CANCELLED = 'CANCELLED'
+class RoundType(models.TextChoices):
+    OPENING = 'OPENING', 'Opening'
+    REBUTTAL = 'REBUTTAL', 'Rebuttal'
+    CLOSING = 'CLOSING', 'Closing'
 
-    @property
-    def label(self):
-        return [(item.value, item.name) for item in self]
+
+class MatchQueueStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    MATCHED = 'MATCHED', 'Matched'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+MAX_MESSAGE_LENGTH = 400

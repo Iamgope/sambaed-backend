@@ -45,6 +45,7 @@ DEFAULT_INSTALLED_APPS = [
 THIRD_PARTY_INSTALLED_APPS = [
     'rest_framework',
     "rest_framework_simplejwt",
+    'channels',
 ]
 
 LOCAL_INSTALLED_APPS = [
@@ -141,6 +142,24 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+CHANNEL_LAYERS = {
+    'default': {
+        # In-memory layer for development. Switch to channels_redis for production.
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    }
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 # Google OAuth settings
 GOOGLE_OAUTH_CONFIG = {
