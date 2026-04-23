@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vaad_vivaad
+      POSTGRES_USER: vaad
+      POSTGRES_PASSWORD: vaad
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vaad -d vaad_vivaad"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    command: >
+      sh -c "python manage.py collectstatic --noinput
+      && python manage.py migrate --noinput
+      && daphne -b 0.0.0.0 -p 8000 project.asgi:application"
+    environment:
+      DJANGO_SETTINGS_MODULE: project.settings
+      SECRET_KEY: django-insecure-docker-only-change-for-production
+      DEBUG: True
+      ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,web
+      DB_NAME: vaad_vivaad
+      DB_USER: vaad
+      DB_PASSWORD: vaad
+      DB_HOST: db
+      DB_PORT: 5432
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    # Optional: set Google OAuth and other variables in a .env file
+    env_file:
+      - .env
+
+volumes:
+  postgres_data:

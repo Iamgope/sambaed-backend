@@ -33,6 +33,7 @@ ALLOWED_HOSTS = list(os.getenv("ALLOWED_HOSTS","localhost,127.0.0.1").split(",")
 
 # Application definition
 DEFAULT_INSTALLED_APPS = [
+    "unfold",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -43,7 +44,7 @@ DEFAULT_INSTALLED_APPS = [
 
 THIRD_PARTY_INSTALLED_APPS = [
     'rest_framework',
-    "simple_jwt",
+    "rest_framework_simplejwt",
 ]
 
 LOCAL_INSTALLED_APPS = [
@@ -60,6 +61,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -85,8 +87,8 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'project.wsgi.application'
-
+# WSGI_APPLICATION = 'project.wsgi.application'
+ASGI_APPLICATION = 'project.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
@@ -138,6 +140,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Google OAuth settings
 GOOGLE_OAUTH_CONFIG = {
