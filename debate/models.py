@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 
-from debate.constants import MatchQueueStatus, RoundType, DebateStatus
+from debate.constants import MatchQueueStatus, ProOrCon, RoundType, DebateStatus
 
 
 class Topic(models.Model):
@@ -79,6 +79,7 @@ class Judgement(models.Model):
 
 class MatchQueue(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    pro_or_con = models.CharField(max_length=20, choices=ProOrCon.choices)
     topic = models.ForeignKey(Topic, on_delete=models.CASCADE)
     debate = models.ForeignKey(Debate, null=True, blank=True, on_delete=models.SET_NULL)
     matched = models.BooleanField(default=False)

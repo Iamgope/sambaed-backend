@@ -31,12 +31,12 @@ def get_active_queue_entry(*, user: User) -> MatchQueue | None:
     return MatchQueue.objects.filter(user=user, status=MatchQueueStatus.PENDING).first()
 
 
-def get_pending_match_for_topic(*, topic_id: int, exclude_user: User) -> MatchQueue | None:
+def get_pending_match_for_topic(*, topic_id: int, exclude_user: User, pro_or_con: str) -> MatchQueue | None:
     return (
         MatchQueue.objects
         .select_for_update()
         .filter(topic_id=topic_id, status=MatchQueueStatus.PENDING)
-        .exclude(user=exclude_user)
+        .exclude(user=exclude_user, pro_or_con=pro_or_con)
         .first()
     )
 

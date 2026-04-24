@@ -7,9 +7,10 @@ from django.db import transaction
 from django.contrib.auth.models import User
 
 from base.exception import ServiceException
-from debate.constants import DebateStatus, MatchQueueStatus, RoundType
+from debate.constants import DebateStatus, MatchQueueStatus, ProOrCon, RoundType
 from debate.models import Debate, Round, Message, Judgement, MatchQueue, Topic
 from debate.selectors import get_active_queue_entry, get_pending_match_for_topic, get_current_round
+from debate.serializers import DebateListSerializer, TopicSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ Respond ONLY with valid JSON, no extra text:
 
 # ── Queue / Matchmaking ──────────────────────────────────────────────────────
 
-def join_queue(*, user: User, topic_id: int) -> MatchQueue:
+def join_queue(*, user: User, topic_id: int, pro_or_con: str) -> MatchQueue:
     try:
         topic = Topic.objects.get(id=topic_id, is_active=True)
     except Topic.DoesNotExist:
@@ -67,22 +68,20 @@ def join_queue(*, user: User, topic_id: int) -> MatchQueue:
         raise ServiceException(message="You are already in the queue")
 
     with transaction.atomic():
-        opponent_entry = get_pending_match_for_topic(topic_id=topic_id, exclude_user=user)
+        opponent_entry = get_pending_match_for_topic(topic_id=topic_id, exclude_user=user, pro_or_con=pro_or_con)
         if opponent_entry:
-            return _create_match(user=user, opponent_entry=opponent_entry, topic=topic)
+            return _create_match(user=user, opponent_entry=opponent_entry, topic=topic, pro_or_con=pro_or_con)
 
         return MatchQueue.objects.create(
             user=user,
             topic=topic,
             status=MatchQueueStatus.PENDING,
+            pro_or_con=pro_or_con,
         )
 
-
-def _create_match(*, user: User, opponent_entry: MatchQueue, topic: Topic) -> MatchQueue:
-    if random.random() < 0.5:
-        user_pro, user_con = user, opponent_entry.user
-    else:
-        user_pro, user_con = opponent_entry.user, user
+@transaction.atomic
+def _create_match(*, user: User, opponent_entry: MatchQueue, topic: Topic, pro_or_con: str) -> MatchQueue:
+    user_pro, user_con = user, opponent_entry.user if pro_or_con == ProOrCon.PRO else opponent_entry.user, user
 
     debate = Debate.objects.create(
         topic=topic,
@@ -301,3 +300,27 @@ def dispute_judgement(*, user: User, debate_id: int) -> Judgement:
         debate.status = DebateStatus.COMPLETED
         debate.save(update_fields=['status'])
         raise ServiceException(message="Dispute judging failed, please try again")
+
+
+def _join_queue_outcome(user: User, topic_id: int, pro_or_con: str) -> dict:
+    entry = join_queue(user=user, topic_id=topic_id, pro_or_con=pro_or_con)
+    if entry.status == MatchQueueStatus.MATCHED and entry.debate_id:
+        debate = (
+            Debate.objects.select_related('topic', 'user_pro', 'user_con', 'winner')
+            .get(id=entry.debate_id)
+        )
+        opponent_id = (
+            debate.user_con_id
+            if user.id == debate.user_pro_id
+            else debate.user_pro_id
+        )
+        return {
+            'outcome': 'matched',
+            'opponent_id': opponent_id,
+            'debate': DebateListSerializer(debate).data,
+        }
+    return {
+        'outcome': 'waiting',
+        'queue_id': entry.id,
+        'topic': TopicSerializer(entry.topic).data,
+    }

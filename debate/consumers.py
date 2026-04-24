@@ -1,12 +1,13 @@
 import json
 import logging
+from typing import Dict
 
-from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
 
 from base.exception import ServiceException
-from debate.constants import DebateStatus
+from debate.services import _join_queue_outcome
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +16,25 @@ class DebateConsumer(AsyncWebsocketConsumer):
     """
     WebSocket consumer for a live debate session.
 
-    Connect:  ws://<host>/ws/debate/<debate_id>/?token=<jwt>
+    Connect:  ws://<host>/ws/debate/
+
+    Each connection is in a per-user group ``user_{user_id}`` (for DMs e.g. match
+    offers) and, after a match, the shared group ``debate_{debate_id}`` with the
+    opponent. You cannot "add the opponent’s channel" by id; each browser adds its
+    own connection to the same named group. Fan-out to both players::
+
+        await channel_layer.group_send(
+            f"debate_{debate_id}",
+            {"type": "debate.event", "client_type": "round.advanced", "data": {...}},
+        )
 
     Client → Server events:
-        {"type": "message", "content": "..."}
+        {"type": "message", "data": {"content": "..."}}
+        {"type": "join_queue", "data": {"topic_id": <int>}}
 
     Server → Client events:
+        {"type": "queue.matched", "data": {"debate": {...}}}   # match found
+        {"type": "queue.waiting", "data": {"queue_id", "topic"}}  # wait for opponent
         {"type": "message.new",     "message":  {...}}
         {"type": "round.advanced",  "round":    {...}}
         {"type": "debate.judging"}
@@ -31,150 +45,144 @@ class DebateConsumer(AsyncWebsocketConsumer):
     # ── Connection lifecycle ──────────────────────────────────────────────────
 
     async def connect(self):
-        self.debate_id = int(self.scope['url_route']['kwargs']['debate_id'])
-        self.group_name = f'debate_{self.debate_id}'
         self.user = self.scope.get('user')
 
         if not self.user or isinstance(self.user, AnonymousUser):
             await self.close(code=4001)
             return
 
-        debate = await self._get_debate()
-        if debate is None:
-            await self.close(code=4004)
-            return
+        self.user_group_name = f'user_{self.user.id}'
 
-        if self.user.id not in (debate['user_pro_id'], debate['user_con_id']):
-            await self.close(code=4003)
-            return
-
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.channel_layer.group_add(self.user_group_name, self.channel_name)
         await self.accept()
 
     async def disconnect(self, close_code):
-        if hasattr(self, 'group_name'):
-            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        if getattr(self, 'debate_group_name', None):
+            await self.channel_layer.group_discard(
+                self.debate_group_name, self.channel_name
+            )
+        if hasattr(self, 'user_group_name'):
+            await self.channel_layer.group_discard(self.user_group_name, self.channel_name)
+
+    async def _add_to_debate_group(self, debate_id: int) -> None:
+        """Subscribes this connection to the shared group for that debate (both users)."""
+        self.debate_id = debate_id
+        self.debate_group_name = f'debate_{debate_id}'
+        await self.channel_layer.group_add(self.debate_group_name, self.channel_name)
 
     # ── Incoming messages ─────────────────────────────────────────────────────
 
-    async def receive(self, text_data):
+    async def receive(self, text_data=None, bytes_data=None):
+        if not text_data:
+            await self._send_error("Expected text data")
+            return
         try:
-            data = json.loads(text_data)
+            payload = json.loads(text_data)
         except json.JSONDecodeError:
             await self._send_error("Invalid JSON")
             return
 
-        event_type = data.get('type')
-        if event_type == 'message':
-            await self._handle_submit(content=data.get('content', ''))
-        else:
-            await self._send_error(f"Unknown event type: {event_type!r}")
-        
-    async def event_mapping(self):
-        return {
-            "message": self.handle_message,
-            "join_queue": self.join_queue,
+        event_type = payload.get('type')
+        event_data = payload.get('data') or {}
+        handlers = {
+            'message': self.handle_message,
+            'join_queue': self.handle_join_queue,
         }
-
-    async def _handle_submit(self, content: str):
         try:
-            result = await self._submit_message(content=content)
-        except ServiceException as e:
-            await self._send_error(e.message)
-            return
-        except Exception as e:
-            logger.error(f"Unexpected error in debate {self.debate_id}: {e}", exc_info=True)
-            await self._send_error("Something went wrong")
+            handler = handlers[event_type]
+        except KeyError:
+            await self._send_error(f"Unknown event type: {event_type!r}")
             return
 
-        # Always broadcast the new message to both participants
-        await self.channel_layer.group_send(
-            self.group_name,
-            {'type': 'debate.message', 'message': result['message']},
+        await handler(event_data)
+
+    async def handle_message(self, event_data: dict):
+        content = event_data.get('content', '')
+        if not content:
+            await self._send_error("Content is required")
+            return
+        pass
+
+    async def handle_join_queue(self, event_data: dict):
+        topic_id = int(event_data.get('topic_id', 0))
+        pro_or_con = event_data.get('pro_or_con')
+        if not topic_id or not pro_or_con:
+            await self._send_error("Topic ID and pro_or_con is required")
+            return
+        if pro_or_con not in ['pro', 'con']:
+            await self._send_error("Invalid pro or con")
+            return
+
+        try:
+            outcome = await database_sync_to_async(_join_queue_outcome)(self.user, topic_id, pro_or_con)
+        except ServiceException as e:
+            await self._send_error(e.message or "Could not join the queue")
+            return
+        
+        await self.process_join_queue_outcome(outcome)
+
+    async def process_join_queue_outcome(self, outcome: Dict):
+        if outcome['outcome'] == 'matched':
+            data = {'debate': outcome['debate']}
+            self.opponent_id = outcome['opponent_id']
+            await self._add_to_debate_group(outcome['debate']['id'])
+
+            await self.send(
+                text_data=json.dumps({'type': 'queue.matched', 'data': data})
+            )
+            # Opponent is not in debate_* yet, so they still get this over user_*
+            await self.channel_layer.group_send(
+                f"user_{outcome['opponent_id']}",
+                {
+                    'type': 'queue.matched',
+                    'data': data,
+                },
+            )
+        else:
+            await self.send(
+                text_data=json.dumps({
+                    'type': 'queue.waiting',
+                    'data': {
+                        'queue_id': outcome['queue_id'],
+                        'topic': outcome['topic'],
+                    },
+                })
+            )
+
+
+    async def queue_matched(self, event):
+        """The waitee: join the same ``debate_{id}`` group, then tell the client."""
+        payload = event.get('data') or {}
+        debate = payload.get('debate') or {}
+        debate_id = debate.get('id')
+        if debate_id:
+            await self._add_to_debate_group(debate_id)
+            pro = (debate.get('user_pro') or {}).get('id')
+            con = (debate.get('user_con') or {}).get('id')
+            if pro and con and self.user.id in (pro, con):
+                self.opponent_id = con if self.user.id == pro else pro
+
+        await self.send(
+            text_data=json.dumps({'type': 'queue.matched', 'data': payload})
         )
 
-        if result.get('round_advanced'):
-            await self.channel_layer.group_send(
-                self.group_name,
-                {'type': 'debate.round_advanced', 'round': result['new_round']},
-            )
+    async def debate_event(self, event):
+        """
+        Fan-out target for `group_send` to ``debate_{debate_id}`` after both joined.
 
-        if result.get('debate_judging'):
-            await self.channel_layer.group_send(
-                self.group_name,
-                {'type': 'debate.judging'},
-            )
+        group_send example::
 
-        if result.get('debate_completed'):
-            await self.channel_layer.group_send(
-                self.group_name,
-                {'type': 'debate.completed', 'judgement': result['judgement']},
-            )
-
-    # ── Channel layer event handlers (group → this socket) ───────────────────
-
-    async def debate_message(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'message.new',
-            'message': event['message'],
-        }))
-
-    async def debate_round_advanced(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'round.advanced',
-            'round': event['round'],
-        }))
-
-    async def debate_judging(self, event):
-        await self.send(text_data=json.dumps({'type': 'debate.judging'}))
-
-    async def debate_completed(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'debate.completed',
-            'judgement': event['judgement'],
-        }))
-
-    # ── Sync DB helpers (run in thread pool) ─────────────────────────────────
-
-    @database_sync_to_async
-    def _get_debate(self) -> dict | None:
-        from debate.models import Debate
-        try:
-            d = Debate.objects.only('user_pro_id', 'user_con_id').get(id=self.debate_id)
-            return {'user_pro_id': d.user_pro_id, 'user_con_id': d.user_con_id}
-        except Debate.DoesNotExist:
-            return None
-
-    @database_sync_to_async
-    def _submit_message(self, content: str) -> dict:
-        from debate.models import Debate, Judgement
-        from debate.services import submit_message
-        from debate.selectors import get_current_round
-        from debate.serializers import MessageSerializer, RoundSerializer, JudgementSerializer
-
-        message = submit_message(user=self.user, debate_id=self.debate_id, content=content)
-        result = {'message': MessageSerializer(message).data}
-
-        debate = Debate.objects.select_related('user_pro', 'user_con').get(id=self.debate_id)
-        current_round = get_current_round(debate=debate)
-
-        # New round was created after this message closed the previous one
-        if current_round and current_round.order > message.round.order:
-            result['round_advanced'] = True
-            result['new_round'] = RoundSerializer(current_round).data
-
-        if debate.status == DebateStatus.JUDGING:
-            result['debate_judging'] = True
-
-        if debate.status == DebateStatus.COMPLETED:
-            result['debate_completed'] = True
-            try:
-                judgement = Judgement.objects.select_related('winner').get(debate=debate)
-                result['judgement'] = JudgementSerializer(judgement).data
-            except Judgement.DoesNotExist:
-                result['judgement'] = None
-
-        return result
+            {
+                "type": "debate.event",
+                "client_type": "round.advanced",
+                "data": {"round": {...}},
+            }
+        """
+        client_type = event.get('client_type', 'message.new')
+        out = {'type': client_type, 'data': event.get('data', {})}
+        if 'message' in event:
+            out['message'] = event['message']
+        await self.send(text_data=json.dumps(out))
 
     async def _send_error(self, message: str):
         await self.send(text_data=json.dumps({'type': 'error', 'message': message}))

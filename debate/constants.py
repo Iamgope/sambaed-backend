@@ -21,4 +21,10 @@ class MatchQueueStatus(models.TextChoices):
     CANCELLED = 'CANCELLED', 'Cancelled'
 
 
+class ProOrCon(models.TextChoices):
+    PRO = 'PRO', 'Pro'
+    CON = 'CON', 'Con'
+    
+
+
 MAX_MESSAGE_LENGTH = 400
