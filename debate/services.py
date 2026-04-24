@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from base.exception import ServiceException
 from debate.constants import DebateStatus, MatchQueueStatus, ProOrCon, RoundType
 from debate.models import Debate, Round, Message, Judgement, MatchQueue, Topic
-from debate.selectors import get_active_queue_entry, get_pending_match_for_topic, get_current_round
+from debate.selectors import get_active_queue_entry, get_debate_by_id, get_pending_match_for_topic, get_current_round
 from debate.serializers import DebateListSerializer, TopicSerializer
 
 logger = logging.getLogger(__name__)
@@ -124,16 +124,15 @@ def leave_queue(*, user: User) -> None:
 # ── Messages / Round progression ────────────────────────────────────────────
 
 def submit_message(*, user: User, debate_id: int, content: str) -> Message:
-    try:
-        debate = Debate.objects.select_related('user_pro', 'user_con').get(id=debate_id)
-    except Debate.DoesNotExist:
+    debate = get_debate_by_id(debate_id=debate_id)
+    if not debate:
         raise ServiceException(message="Debate not found")
-
-    if user not in (debate.user_pro, debate.user_con):
-        raise ServiceException(message="You are not a participant in this debate")
 
     if debate.status != DebateStatus.ONGOING:
         raise ServiceException(message="This debate is not active")
+
+    if user not in (debate.user_pro, debate.user_con):
+        raise ServiceException(message="You are not a participant in this debate")
 
     current_round = get_current_round(debate=debate)
     if not current_round:
@@ -265,16 +264,16 @@ def _save_judgement(*, debate: Debate, data: dict) -> Judgement:
 
 def _trigger_judging(*, debate: Debate) -> None:
     debate.status = DebateStatus.JUDGING
-    debate.save()
+    debate.save(update_fields=['status'])
 
-    try:
-        data = _call_judge(debate=debate, model=JUDGE_MODEL_DEFAULT)
-        _save_judgement(debate=debate, data=data)
-    except Exception as e:
-        logger.error(f"Judging failed for debate {debate.id}: {e}", exc_info=True)
-        debate.status = DebateStatus.ONGOING
-        debate.save(update_fields=['status'])
-        raise ServiceException(message="Judging failed, please try again")
+    # try:
+    #     data = _call_judge(debate=debate, model=JUDGE_MODEL_DEFAULT)
+    #     _save_judgement(debate=debate, data=data)
+    # except Exception as e:
+    #     logger.error(f"Judging failed for debate {debate.id}: {e}", exc_info=True)
+    #     debate.status = DebateStatus.ONGOING
+    #     debate.save(update_fields=['status'])
+    #     raise ServiceException(message="Judging failed, please try again")
 
 
 def dispute_judgement(*, user: User, debate_id: int) -> Judgement:

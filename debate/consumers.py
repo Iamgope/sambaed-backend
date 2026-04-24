@@ -7,7 +7,8 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
 
 from base.exception import ServiceException
-from debate.services import _join_queue_outcome
+from debate.serializers import MessageSerializer
+from debate.services import _join_queue_outcome, submit_message
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,26 @@ class DebateConsumer(AsyncWebsocketConsumer):
         if not content:
             await self._send_error("Content is required")
             return
-        pass
+    
+    async def handle_message_submit(self, content: str):
+        debate_id = self.debate_id
+        round_id = self.round_id
+        if not debate_id or not round_id:
+            await self._send_error("Debate ID and Round Id is required")
+            return
+        
+        try:
+            message = await database_sync_to_async(submit_message)(self.user, debate_id, round_id, content)
+            await self.channel_layer.group_send(
+                self.debate_group_name,
+                {
+                    'type': 'message.new',
+                    'message': MessageSerializer(message).data,
+                },
+            )
+        except ServiceException as e:
+            await self._send_error(e.message or "Could not submit the message")
+            return
 
     async def handle_join_queue(self, event_data: dict):
         topic_id = int(event_data.get('topic_id', 0))
@@ -128,6 +148,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
         if outcome['outcome'] == 'matched':
             data = {'debate': outcome['debate']}
             self.opponent_id = outcome['opponent_id']
+            self.round_id = outcome['debate']['rounds'][0]['id']
             await self._add_to_debate_group(outcome['debate']['id'])
 
             await self.send(
@@ -158,6 +179,8 @@ class DebateConsumer(AsyncWebsocketConsumer):
         payload = event.get('data') or {}
         debate = payload.get('debate') or {}
         debate_id = debate.get('id')
+        round_id = debate.get('rounds')[0].get('id')
+        self.round_id = round_id
         if debate_id:
             await self._add_to_debate_group(debate_id)
             pro = (debate.get('user_pro') or {}).get('id')

@@ -49,3 +49,6 @@ def get_latest_queue_entry(*, user: User) -> MatchQueue | None:
         .order_by('-joined_at')
         .first()
     )
+
+def get_debate_by_id(*, debate_id: int) -> Debate | None:
+    return Debate.objects.select_related('topic', 'user_pro', 'user_con', 'winner').filter(id=debate_id).first()
