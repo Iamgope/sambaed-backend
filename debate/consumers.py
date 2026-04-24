@@ -64,6 +64,9 @@ class DebateConsumer(AsyncWebsocketConsumer):
         if hasattr(self, 'user_group_name'):
             await self.channel_layer.group_discard(self.user_group_name, self.channel_name)
 
+    async def _send_error(self, message: str):
+        await self.send(text_data=json.dumps({'type': 'error', 'message': message}))
+
     async def _add_to_debate_group(self, debate_id: int) -> None:
         """Subscribes this connection to the shared group for that debate (both users)."""
         self.debate_id = debate_id
@@ -184,5 +187,3 @@ class DebateConsumer(AsyncWebsocketConsumer):
             out['message'] = event['message']
         await self.send(text_data=json.dumps(out))
 
-    async def _send_error(self, message: str):
-        await self.send(text_data=json.dumps({'type': 'error', 'message': message}))
