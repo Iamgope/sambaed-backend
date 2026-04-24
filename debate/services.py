@@ -148,8 +148,8 @@ def submit_message(*, user: User, debate_id: int, content: str) -> Message:
         content=content,
     )
 
-    _maybe_advance_round(debate=debate, current_round=current_round)
-    return message
+    next_round = _maybe_advance_round(debate=debate, current_round=current_round)
+    return message, next_round
 
 
 def _is_user_turn(*, debate: Debate, current_round: Round, user: User) -> bool:
@@ -189,14 +189,15 @@ def _maybe_advance_round(*, debate: Debate, current_round: Round) -> None:
     next_rounds = [(rt, order) for rt, order in ROUND_SEQUENCE if order > current_round.order]
     if next_rounds:
         next_type, next_order = next_rounds[0]
-        Round.objects.create(
+        next_round = Round.objects.create(
             debate=debate,
             round_type=next_type,
             order=next_order,
             started_at=timezone.now(),
         )
-    else:
-        _trigger_judging(debate=debate)
+        return next_round
+    # else:
+    #     _trigger_judging(debate=debate)
 
 
 # ── AI Judging ───────────────────────────────────────────────────────────────

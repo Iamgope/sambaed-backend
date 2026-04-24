@@ -7,7 +7,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
 
 from base.decorators import websocket_catch_service_exception
-from debate.serializers import MessageSerializer
+from debate.serializers import MessageSerializer, RoundSerializer
 from debate.services import _join_queue_outcome, submit_message
 
 logger = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
         if not debate_id or not self.debate_group_name:
             await self._send_error("No active debate for this connection")
             return
-        message = await database_sync_to_async(submit_message)(
+        message, next_round = await database_sync_to_async(submit_message)(
             user=self.user, debate_id=debate_id, content=content
         )
         await self.channel_layer.group_send(
@@ -123,6 +123,16 @@ class DebateConsumer(AsyncWebsocketConsumer):
                 'message': MessageSerializer(message).data,
             },
         )
+        if next_round:
+            # TODO: send after a delay to allow the opponent to read this message first
+            await self.channel_layer.group_send(
+                self.debate_group_name,
+                {
+                    'type': 'round.advanced',
+                    'round': RoundSerializer(next_round).data,
+                },
+            )
+
 
     @websocket_catch_service_exception(default_message="Could not join the queue")
     async def handle_join_queue(self, event_data: dict):
