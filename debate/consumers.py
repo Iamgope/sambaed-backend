@@ -69,6 +69,12 @@ class DebateConsumer(AsyncWebsocketConsumer):
             await self._handle_submit(content=data.get('content', ''))
         else:
             await self._send_error(f"Unknown event type: {event_type!r}")
+        
+    async def event_mapping(self):
+        return {
+            "message": self.handle_message,
+            "join_queue": self.join_queue,
+        }
 
     async def _handle_submit(self, content: str):
         try:

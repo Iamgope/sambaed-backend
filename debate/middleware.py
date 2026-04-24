@@ -7,6 +7,22 @@ from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
 
 
+def _bearer_from_headers(scope) -> str | None:
+    for name, value in scope.get("headers", []):
+        if name == b"authorization":
+            part = value.decode("latin-1").strip()
+            if part.lower().startswith("bearer "):
+                return part[7:].strip() or None
+    return None
+
+
+def _token_from_query(scope) -> str | None:
+    query_string = scope.get("query_string", b"").decode()
+    params = parse_qs(query_string)
+    token_list = params.get("token", [])
+    return token_list[0] if token_list else None
+
+
 @database_sync_to_async
 def get_user_from_token(token: str) -> User | AnonymousUser:
     try:
@@ -17,14 +33,12 @@ def get_user_from_token(token: str) -> User | AnonymousUser:
 
 
 class JWTAuthMiddleware(BaseMiddleware):
-    """Attach a User to the WebSocket scope using a JWT passed as ?token=<jwt>."""
+    """Attach a User to the WebSocket scope from ``Authorization: Bearer <jwt>``.
+
+    Falls back to ``?token=<jwt>`` if the header is absent.
+    """
 
     async def __call__(self, scope, receive, send):
-        query_string = scope.get('query_string', b'').decode()
-        params = parse_qs(query_string)
-        token_list = params.get('token', [])
-
-        scope['user'] = (
-            await get_user_from_token(token_list[0]) if token_list else AnonymousUser()
-        )
+        token = _bearer_from_headers(scope) or _token_from_query(scope)
+        scope["user"] = await get_user_from_token(token) if token else AnonymousUser()
         return await super().__call__(scope, receive, send)
