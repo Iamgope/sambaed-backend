@@ -17,13 +17,20 @@ services:
 
   web:
     build: .
-    command: >
-      sh -c "python manage.py collectstatic --noinput
-      && python manage.py migrate --noinput
-      && daphne -b 0.0.0.0 -p 8000 project.asgi:application"
+    # Project tree is bind-mounted below so local edits are visible in the
+    # container. watchfiles restarts Daphne on .py changes (Daphne has no
+    # built-in --reload for ASGI).
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        python manage.py collectstatic --noinput
+        python manage.py migrate --noinput
+        python -m watchfiles --filter python --ignore-paths "postgres_data,.git,__pycache__,staticfiles" "daphne -b 0.0.0.0 -p 8000 project.asgi:application" /app
     environment:
       DJANGO_SETTINGS_MODULE: project.settings
-      SECRET_KEY: django-insecure-docker-only-change-for-production
+      # SECRET_KEY: django-insecure-docker-only-change-for-production
       DEBUG: True
       ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,web
       DB_NAME: vaad_vivaad
@@ -36,9 +43,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - .:/app:cached
     # Optional: set Google OAuth and other variables in a .env file
     env_file:
       - .env
-
-volumes:
-  postgres_data:

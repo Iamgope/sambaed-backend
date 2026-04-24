@@ -81,7 +81,7 @@ def join_queue(*, user: User, topic_id: int, pro_or_con: str) -> MatchQueue:
 
 @transaction.atomic
 def _create_match(*, user: User, opponent_entry: MatchQueue, topic: Topic, pro_or_con: str) -> MatchQueue:
-    user_pro, user_con = user, opponent_entry.user if pro_or_con == ProOrCon.PRO else opponent_entry.user, user
+    user_pro, user_con = (user, opponent_entry.user) if pro_or_con == ProOrCon.PRO else (opponent_entry.user, user)
 
     debate = Debate.objects.create(
         topic=topic,

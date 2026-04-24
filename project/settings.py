@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
+from datetime import timedelta
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -170,4 +171,20 @@ GOOGLE_OAUTH_CONFIG = {
     "GOOGLE_ACCESS_TOKEN_OBTAIN_URL": os.getenv("GOOGLE_ACCESS_TOKEN_OBTAIN_URL"),
     "GOOGLE_USER_INFO_URL": os.getenv("GOOGLE_USER_INFO_URL"),
     "GOOGLE_ID_TOKEN_INFO_URL": os.getenv("GOOGLE_ID_TOKEN_INFO_URL"),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=24*60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+}
+
+UNFOLD = {
+    "SITE_TITLE": "Vaad Vivaad",
+    "SITE_HEADER": "Vaad Vivaad Admin",
+    "SIDEBAR": {
+        "show_search": True,  # Search in applications and models names
+        "show_all_applications": True,  # Dropdown with all applications and models
+    }
 }
