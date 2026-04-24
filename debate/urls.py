@@ -14,11 +14,6 @@ from debate.views import (
 
 urlpatterns = [
     path('topics/', TopicListView.as_view(), name='topic-list'),
-
-    path('queue/join/', QueueJoinView.as_view(), name='queue-join'),
-    path('queue/leave/', QueueLeaveView.as_view(), name='queue-leave'),
-    path('queue/status/', QueueStatusView.as_view(), name='queue-status'),
-
     path('debates/', DebateListView.as_view(), name='debate-list'),
     path('debates/<int:debate_id>/', DebateDetailView.as_view(), name='debate-detail'),
     path('debates/<int:debate_id>/messages/', MessageListView.as_view(), name='message-list'),

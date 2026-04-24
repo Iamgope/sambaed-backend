@@ -2,7 +2,7 @@ from django.db.models import Q
 from django.contrib.auth.models import User
 
 from debate.models import Debate, Round, MatchQueue
-from debate.constants import MatchQueueStatus
+from debate.constants import DebateStatus, MatchQueueStatus
 
 
 def get_active_topics():
@@ -52,3 +52,10 @@ def get_latest_queue_entry(*, user: User) -> MatchQueue | None:
 
 def get_debate_by_id(*, debate_id: int) -> Debate | None:
     return Debate.objects.select_related('topic', 'user_pro', 'user_con', 'winner').filter(id=debate_id).first()
+
+
+def update_debate_status(*, debate_id: int, status: DebateStatus) -> None:
+    Debate.objects.filter(id=debate_id).update(status=status)
+
+def update_match_queue_status(*, user_id: int, status: MatchQueueStatus, debate_id: int) -> None:
+    MatchQueue.objects.filter(user_id=user_id, status=status, debate_id=debate_id).update(status=status)

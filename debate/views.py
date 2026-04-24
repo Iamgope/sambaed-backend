@@ -30,42 +30,6 @@ class TopicListView(APIView):
         return status_200(message="Topics fetched", data={"topics": TopicSerializer(topics, many=True).data})
 
 
-class QueueJoinView(APIView):
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    @handle_exception
-    def post(self, request):
-        serializer = JoinQueueSerializer(data=request.data)
-        if not serializer.is_valid():
-            return status_400(message="Invalid data", data=serializer.errors)
-
-        entry = join_queue(user=request.user, topic_id=serializer.validated_data['topic_id'])
-        return status_200(message="Joined queue", data=QueueStatusSerializer(entry).data)
-
-
-class QueueLeaveView(APIView):
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    @handle_exception
-    def delete(self, request):
-        leave_queue(user=request.user)
-        return status_200(message="Left queue")
-
-
-class QueueStatusView(APIView):
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    @handle_exception
-    def get(self, request):
-        entry = get_latest_queue_entry(user=request.user)
-        if not entry:
-            return status_200(message="Not in queue", data={"status": None})
-        return status_200(message="Queue status fetched", data=QueueStatusSerializer(entry).data)
-
-
 class DebateListView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]

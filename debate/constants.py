@@ -7,6 +7,7 @@ class DebateStatus(models.TextChoices):
     JUDGING = 'JUDGING', 'Judging'
     COMPLETED = 'COMPLETED', 'Completed'
     DISPUTED = 'DISPUTED', 'Disputed'
+    ABANDONED = 'ABANDONED', 'Abandoned'
 
 
 class RoundType(models.TextChoices):
@@ -19,6 +20,7 @@ class MatchQueueStatus(models.TextChoices):
     PENDING = 'PENDING', 'Pending'
     MATCHED = 'MATCHED', 'Matched'
     CANCELLED = 'CANCELLED', 'Cancelled'
+    ABANDONED = 'ABANDONED', 'Abandoned'
 
 
 class ProOrCon(models.TextChoices):
