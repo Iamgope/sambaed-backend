@@ -4,9 +4,21 @@ from django.contrib.auth.models import User
 from debate.constants import MatchQueueStatus, ProOrCon, RoundType, DebateStatus
 
 
+class Category(models.Model):
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
 class Topic(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

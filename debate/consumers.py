@@ -8,7 +8,7 @@ from django.contrib.auth.models import AnonymousUser
 
 from base.decorators import websocket_catch_service_exception
 from debate.constants import DebateStatus, MatchQueueStatus
-from debate.selectors import update_debate_status, update_match_queue_status, update_opponent_status
+from debate.selectors import update_debate_status, update_match_queue_status
 from debate.serializers import MessageSerializer, RoundSerializer
 from debate.services import _join_queue_outcome, submit_message, leave_queue
 
@@ -210,7 +210,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
         await database_sync_to_async(update_match_queue_status)(
             user_id=self.opponent_id, status=MatchQueueStatus.PENDING, debate_id=self.debate_id
         )
-        await database_sync_to_async(update_opponent_status)(
+        await database_sync_to_async(update_match_queue_status)(
             user_id=self.user.id, status=MatchQueueStatus.ABANDONED, debate_id=self.debate_id
         )
 

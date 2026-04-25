@@ -2,9 +2,6 @@ from django.urls import path
 
 from debate.views import (
     TopicListView,
-    QueueJoinView,
-    QueueLeaveView,
-    QueueStatusView,
     DebateListView,
     DebateDetailView,
     MessageListView,
