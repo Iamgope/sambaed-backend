@@ -1,6 +1,7 @@
 from django.urls import path
 
 from debate.views import (
+    OngoingDebateListView,
     TopicListView,
     DebateListView,
     DebateDetailView,
@@ -11,9 +12,10 @@ from debate.views import (
 
 urlpatterns = [
     path('topics/', TopicListView.as_view(), name='topic-list'),
-    path('debates/', DebateListView.as_view(), name='debate-list'),
-    path('debates/<int:debate_id>/', DebateDetailView.as_view(), name='debate-detail'),
-    path('debates/<int:debate_id>/messages/', MessageListView.as_view(), name='message-list'),
-    path('debates/<int:debate_id>/judgement/', JudgementView.as_view(), name='judgement'),
-    path('debates/<int:debate_id>/dispute/', DisputeView.as_view(), name='dispute'),
+    path('getMyDebates/', DebateListView.as_view(), name='debate-list'),
+    path('<int:debate_id>/', DebateDetailView.as_view(), name='debate-detail'),
+    path('<int:debate_id>/messages/', MessageListView.as_view(), name='message-list'),
+    path('<int:debate_id>/judgement/', JudgementView.as_view(), name='judgement'),
+    path('<int:debate_id>/dispute/', DisputeView.as_view(), name='dispute'),
+    path('ongoingDebates/', OngoingDebateListView.as_view(), name='ongoing-debate-list'),
 ]

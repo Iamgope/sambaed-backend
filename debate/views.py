@@ -5,16 +5,15 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from base.decorators import handle_exception
 from base.response import status_200, status_400
 
+from debate.constants import DebateStatus
 from debate.models import Message, Judgement
-from debate.selectors import get_active_topics, get_user_debates, get_debate, get_latest_queue_entry
+from debate.selectors import get_active_topics, get_debates_by_status, get_user_debates, get_debate
 from debate.services import submit_message, dispute_judgement
 from debate.serializers import (
     TopicSerializer,
     DebateListSerializer,
     DebateDetailSerializer,
     JudgementSerializer,
-    JoinQueueSerializer,
-    QueueStatusSerializer,
     SubmitMessageSerializer,
     MessageSerializer,
 )
@@ -38,6 +37,20 @@ class DebateListView(APIView):
     def get(self, request):
         debates = get_user_debates(user=request.user)
         return status_200(message="Debates fetched", data={"debates": DebateListSerializer(debates, many=True).data})
+
+class OngoingDebateListView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @handle_exception
+    def get(self, request):
+        debates = get_debates_by_status(status=DebateStatus.ONGOING)
+        return status_200(
+            message="Ongoing debates fetched",
+            data={
+                "debates": DebateListSerializer(debates, many=True).data,
+            }
+        )
 
 
 class DebateDetailView(APIView):

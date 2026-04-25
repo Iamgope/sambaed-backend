@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 
-from debate.models import Debate, Round, Message, Judgement, MatchQueue, Topic
+from debate.models import Debate, Round, Message, Judgement, MatchQueue, Topic, Category
 
 
 class UserMinimalSerializer(serializers.ModelSerializer):
@@ -10,10 +10,17 @@ class UserMinimalSerializer(serializers.ModelSerializer):
         fields = ['id', 'username']
 
 
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'description']
+
+
 class TopicSerializer(serializers.ModelSerializer):
+    category = CategorySerializer(read_only=True)
     class Meta:
         model = Topic
-        fields = ['id', 'title', 'description']
+        fields = ['id', 'title', 'description', 'category']
 
 
 class MessageSerializer(serializers.ModelSerializer):
