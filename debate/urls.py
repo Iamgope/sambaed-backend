@@ -8,6 +8,7 @@ from debate.views import (
     MessageListView,
     JudgementView,
     DisputeView,
+    MyDebatesListView,
 )
 
 urlpatterns = [
@@ -18,4 +19,5 @@ urlpatterns = [
     path('<int:debate_id>/judgement/', JudgementView.as_view(), name='judgement'),
     path('<int:debate_id>/dispute/', DisputeView.as_view(), name='dispute'),
     path('ongoingDebates/', OngoingDebateListView.as_view(), name='ongoing-debate-list'),
+    path('myDebates/', MyDebatesListView.as_view(), name='my-debate-list'),
 ]

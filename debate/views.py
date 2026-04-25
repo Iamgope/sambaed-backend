@@ -6,15 +6,20 @@ from base.decorators import handle_exception
 from base.response import status_200, status_400
 
 from debate.constants import DebateStatus
-from debate.models import Message, Judgement
-from debate.selectors import get_active_topics, get_debates_by_status, get_user_debates, get_debate
-from debate.services import submit_message, dispute_judgement
+from debate.models import Judgement
+from debate.selectors import (
+    get_active_topics,
+    get_debates_by_status,
+    get_messages_for_debate_and_user,
+    get_user_debates,
+    get_debate,
+)
+from debate.services import  dispute_judgement
 from debate.serializers import (
     TopicSerializer,
     DebateListSerializer,
     DebateDetailSerializer,
     JudgementSerializer,
-    SubmitMessageSerializer,
     MessageSerializer,
 )
 
@@ -63,6 +68,15 @@ class DebateDetailView(APIView):
         if request.user not in (debate.user_pro, debate.user_con):
             return status_400(message="You are not a participant in this debate")
         return status_200(message="Debate fetched", data=DebateDetailSerializer(debate).data)
+    
+class MyDebatesListView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @handle_exception
+    def get(self, request):
+        debates = get_user_debates(user=request.user)
+        return status_200(message="My debates fetched", data={"debates": DebateListSerializer(debates, many=True).data})
 
 
 class MessageListView(APIView):
@@ -71,29 +85,11 @@ class MessageListView(APIView):
 
     @handle_exception
     def get(self, request, debate_id):
-        debate = get_debate(debate_id=debate_id)
-        if request.user not in (debate.user_pro, debate.user_con):
-            return status_400(message="You are not a participant in this debate")
-        messages = (
-            Message.objects
-            .filter(debate=debate)
-            .select_related('user', 'round')
-            .order_by('created_at')
-        )
+        if not debate_id:
+            return status_400(message="Debate ID is required")
+
+        messages = get_messages_for_debate_and_user(debate_id=debate_id, user_id=request.user.id)
         return status_200(message="Messages fetched", data={"messages": MessageSerializer(messages, many=True).data})
-
-    @handle_exception
-    def post(self, request, debate_id):
-        serializer = SubmitMessageSerializer(data=request.data)
-        if not serializer.is_valid():
-            return status_400(message="Invalid data", data=serializer.errors)
-
-        message, _ = submit_message(
-            user=request.user,
-            debate_id=debate_id,
-            content=serializer.validated_data['content'],
-        )
-        return status_200(message="Message submitted", data=MessageSerializer(message).data)
 
 
 class JudgementView(APIView):

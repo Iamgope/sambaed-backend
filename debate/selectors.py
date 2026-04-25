@@ -240,3 +240,11 @@ def get_debates_by_status(*, status: DebateStatus) -> QuerySet[Debate]:
         .filter(status=status)
         .order_by("-started_at")
     )
+
+def get_messages_for_debate_and_user(*, debate_id: int, user_id: int) -> QuerySet[Message]:
+    return (
+        Message.objects
+        .filter(debate_id=debate_id, user_id=user_id)
+        .select_related('user', 'round')
+        .order_by('created_at')
+    )
