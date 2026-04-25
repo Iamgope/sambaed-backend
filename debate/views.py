@@ -7,7 +7,7 @@ from base.response import status_200, status_400
 
 from debate.models import Message, Judgement
 from debate.selectors import get_active_topics, get_user_debates, get_debate, get_latest_queue_entry
-from debate.services import join_queue, leave_queue, submit_message, dispute_judgement
+from debate.services import submit_message, dispute_judgement
 from debate.serializers import (
     TopicSerializer,
     DebateListSerializer,
@@ -75,7 +75,7 @@ class MessageListView(APIView):
         if not serializer.is_valid():
             return status_400(message="Invalid data", data=serializer.errors)
 
-        message = submit_message(
+        message, _ = submit_message(
             user=request.user,
             debate_id=debate_id,
             content=serializer.validated_data['content'],

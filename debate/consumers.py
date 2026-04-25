@@ -10,7 +10,7 @@ from base.decorators import websocket_catch_service_exception
 from debate.constants import DebateStatus, MatchQueueStatus
 from debate.selectors import update_debate_status, update_match_queue_status
 from debate.serializers import MessageSerializer, RoundSerializer
-from debate.services import _join_queue_outcome, submit_message, leave_queue
+from debate.services import _join_queue_outcome, get_pro_or_con, submit_message, leave_queue
 
 logger = logging.getLogger(__name__)
 DEBATE_GROUP = "debate_{debate_id}"
@@ -141,17 +141,16 @@ class DebateConsumer(AsyncWebsocketConsumer):
 
     @websocket_catch_service_exception(default_message="Could not join the queue")
     async def handle_join_queue(self, event_data: dict):
-        topic_id = int(event_data.get('topic_id', 0))
+        topic_id = int(event_data.get('topic_id'))
         pro_or_con = event_data.get('pro_or_con')
-        if not topic_id or not pro_or_con:
-            await self._send_error("Topic ID and pro_or_con is required")
+        category_id = event_data.get('category_id')
+        if not topic_id and not category_id:
+            await self._send_error("Topic ID or  Category ID is required")
             return
-        if pro_or_con not in ['pro', 'con']:
-            await self._send_error("Invalid pro or con")
-            return
-
+        
+        pro_or_con = await database_sync_to_async(get_pro_or_con)(user=self.user, pro_or_con=pro_or_con)
         outcome = await database_sync_to_async(_join_queue_outcome)(
-            self.user, topic_id, pro_or_con
+            user=self.user, topic_id=topic_id, pro_or_con=pro_or_con, category_id=category_id
         )
         await self.process_join_queue_outcome(outcome)
 

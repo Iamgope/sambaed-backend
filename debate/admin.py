@@ -1,13 +1,20 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
-from debate.models import Topic, Debate, Round, Message, MatchQueue
+from debate.models import Topic, Debate, Round, Message, MatchQueue, Category
 
 
 @admin.register(Topic)
 class TopicAdmin(ModelAdmin):
-    list_display = ('title', 'description', 'is_active')
-    list_filter = ('is_active',)
+    list_display = ('title', 'description', 'category', 'is_active')
+    list_filter = ('is_active', 'category')
     search_fields = ('title', 'description')
+
+@admin.register(Category)
+class CategoryAdmin(ModelAdmin):
+    list_display = ('name', 'description', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'description')
+
 
 @admin.register(Debate)
 class DebateAdmin(ModelAdmin):
