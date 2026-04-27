@@ -218,6 +218,9 @@ class DebateConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_discard(
             self.debate_group_name, self.channel_name
         )
+        self.debate_id = None
+        self.debate_group_name = None
+        self.opponent_id = None
 
     async def queue_matched(self, event):
         """The waitee: join the same ``debate_{id}`` group, then tell the client."""

@@ -16,7 +16,6 @@ from debate.selectors import (
 )
 from debate.services import  dispute_judgement, group_topics_by_category
 from debate.serializers import (
-    TopicSerializer,
     DebateListSerializer,
     DebateDetailSerializer,
     JudgementSerializer,
