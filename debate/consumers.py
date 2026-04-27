@@ -107,17 +107,14 @@ class DebateConsumer(AsyncWebsocketConsumer):
 
     async def handle_message(self, event_data: dict):
         content = event_data.get('content', '')
-        if not content:
-            await self._send_error("Content is required")
+        if not content or not self.debate_id or not self.debate_group_name:
+            await self._send_error("Content is required and debate is active")
             return
         await self.handle_message_submit(content)
 
     @websocket_catch_service_exception(default_message="Could not submit the message")
     async def handle_message_submit(self, content: str):
         debate_id = self.debate_id
-        if not debate_id or not self.debate_group_name:
-            await self._send_error("No active debate for this connection")
-            return
         message, next_round = await database_sync_to_async(submit_message)(
             user=self.user, debate_id=debate_id, content=content
         )
