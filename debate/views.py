@@ -14,7 +14,7 @@ from debate.selectors import (
     get_user_debates,
     get_debate,
 )
-from debate.services import  dispute_judgement
+from debate.services import  dispute_judgement, group_topics_by_category
 from debate.serializers import (
     TopicSerializer,
     DebateListSerializer,
@@ -31,7 +31,8 @@ class TopicListView(APIView):
     @handle_exception
     def get(self, request):
         topics = get_active_topics()
-        return status_200(message="Topics fetched", data={"topics": TopicSerializer(topics, many=True).data})
+        data = group_topics_by_category(topics=topics)
+        return status_200(message="Topics fetched", data={"topics": data})
 
 
 class DebateListView(APIView):

@@ -1,3 +1,5 @@
+from collections import defaultdict
+from typing import Dict
 import json
 import random
 import logging
@@ -296,3 +298,14 @@ def get_pro_or_con(*, user: User, pro_or_con: Optional[str]) -> ProOrCon:
     if random.random() < 0.5:
         return ProOrCon.PRO
     return ProOrCon.CON
+
+
+def group_topics_by_category(*, topics: list[Topic]) -> Dict:
+    data = TopicSerializer(topics, many=True).data
+    result = defaultdict(defaultdict(list))
+    for topic_data in data:
+        category_name = topic_data['category']["name"]
+        result[category_name]["topics"].append(topic_data)
+        result[category_name]["description"] = topic_data['category']["description"]
+        # TODO: can also add category backgroud url here
+    return result
