@@ -11,5 +11,8 @@ task_queues = [
 ]
 
 task_routes = {
-
+    "debate.tasks.send_advance_round_event": {
+        "queue": task_default_queue,
+        "routing_key": "debate.tasks.send_advance_round_event",
+    },
 }

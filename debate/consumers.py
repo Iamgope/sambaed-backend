@@ -11,6 +11,7 @@ from debate.constants import DebateStatus, MatchQueueStatus
 from debate.selectors import update_debate_status, update_match_queue_status
 from debate.serializers import MessageSerializer, RoundSerializer
 from debate.services import _join_queue_outcome, get_pro_or_con, submit_message, leave_queue
+from debate.tasks import send_advance_round_event
 
 logger = logging.getLogger(__name__)
 DEBATE_GROUP = "debate_{debate_id}"
@@ -126,13 +127,8 @@ class DebateConsumer(AsyncWebsocketConsumer):
             },
         )
         if next_round:
-            # TODO: send after a delay to allow the opponent to read this message first
-            await self.channel_layer.group_send(
-                self.debate_group_name,
-                {
-                    'type': 'round.advanced',
-                    'round': RoundSerializer(next_round).data,
-                },
+            send_advance_round_event.apply_async(
+                args=[self.debate_group_name, RoundSerializer(next_round).data], countdown=10
             )
 
 
