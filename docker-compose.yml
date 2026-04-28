@@ -15,6 +15,22 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:4.3.0-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: vaad
+      RABBITMQ_DEFAULT_PASS: vaad
+    volumes:
+      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
   web:
     build: .
     # Project tree is bind-mounted below so local edits are visible in the
@@ -38,13 +54,37 @@ services:
       DB_PASSWORD: vaad
       DB_HOST: db
       DB_PORT: 5432
+      CELERY_BROKER_URL: amqp://vaad:vaad@rabbitmq:5672/test
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     volumes:
       - .:/app:cached
-    # Optional: set Google OAuth and other variables in a .env file
+    env_file:
+      - .env
+
+  celery:
+    build: .
+    command: celery -A project worker -l info
+    environment:
+      DJANGO_SETTINGS_MODULE: project.settings
+      DEBUG: True
+      DB_NAME: vaad_vivaad
+      DB_USER: vaad
+      DB_PASSWORD: vaad
+      DB_HOST: db
+      DB_PORT: 5432
+      CELERY_BROKER_URL: amqp://vaad:vaad@rabbitmq:5672/test
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - .:/app:cached
     env_file:
       - .env

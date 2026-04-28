@@ -13,7 +13,7 @@ from datetime import timedelta
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-
+from project.celery_config import task_queues, task_routes
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -53,6 +53,7 @@ LOCAL_INSTALLED_APPS = [
     'authentication',
     'quiz',
     'debate',
+    "users",
 ]
 
 INSTALLED_APPS = [
@@ -188,3 +189,15 @@ UNFOLD = {
         "show_all_applications": True,  # Dropdown with all applications and models
     }
 }
+
+# Celery — broker: RabbitMQ (see docker-compose). Override via CELERY_BROKER_URL.
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "amqp://guest:guest@127.0.0.1:5672//")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "rpc://")
+CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_QUEUES = task_queues
+CELERY_TASK_ROUTES = task_routes
