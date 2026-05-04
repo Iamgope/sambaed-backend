@@ -13,7 +13,7 @@ from debate.constants import DebateStatus, MatchQueueStatus, ProOrCon, RoundType
 # ── Topics & debates (read) ──────────────────────────────────────────────
 
 def get_active_topics() -> QuerySet[Topic]:
-    return Topic.objects.select_related("category").filter(is_active=True).order_by("-created_at")
+    return Topic.objects.select_related("category").filter(is_active=True).order_by("priority")
 
 
 def get_debate(*, debate_id: int) -> Debate:

@@ -307,5 +307,5 @@ def group_topics_by_category(*, topics: list[Topic]) -> Dict:
         category_name = topic_data['category']["name"]
         result[category_name]["topics"].append(topic_data)
         result[category_name]["description"] = topic_data['category']["description"]
-        # TODO: can also add category backgroud url here
+        result[category_name]["background_image"] = topic_data["category"]["background_image"]
     return result

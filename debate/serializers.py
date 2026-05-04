@@ -13,14 +13,14 @@ class UserMinimalSerializer(serializers.ModelSerializer):
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description']
+        fields = ['id', 'name', 'description', "background_image"]
 
 
 class TopicSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     class Meta:
         model = Topic
-        fields = ['id', 'title', 'description', 'category']
+        fields = ['id', 'title', 'description', 'category', "background_image"]
 
 
 class MessageSerializer(serializers.ModelSerializer):

@@ -7,6 +7,7 @@ from debate.constants import MatchQueueStatus, ProOrCon, RoundType, DebateStatus
 class Category(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    background_image = models.ImageField(upload_to='category_backgrounds/', null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -19,6 +20,8 @@ class Topic(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
+    priority = models.IntegerField(default=0)
+    background_image = models.ImageField(upload_to='topic_backgrounds/', null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
