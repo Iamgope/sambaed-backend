@@ -43,6 +43,7 @@ class DebateListView(APIView):
         debates = get_user_debates(user=request.user)
         return status_200(message="Debates fetched", data={"debates": DebateListSerializer(debates, many=True).data})
 
+
 class OngoingDebateListView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -69,6 +70,7 @@ class DebateDetailView(APIView):
             return status_400(message="You are not a participant in this debate")
         return status_200(message="Debate fetched", data=DebateDetailSerializer(debate).data)
     
+
 class MyDebatesListView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
