@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+from users.constants import DeviceType
+
 # Create your models here.
 class UserProfile(User):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
@@ -14,3 +16,12 @@ class UserProfile(User):
 
     def __str__(self):
         return self.user.username
+
+
+class UserDevice(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    device_id = models.CharField(max_length=255, unique=True)
+    device_type = models.CharField(max_length=255, choices=DeviceType.choices)
+    device_token = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
