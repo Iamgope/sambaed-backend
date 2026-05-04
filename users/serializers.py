@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from users.models import UserProfile
+from users.models import UserFeedback, UserProfile
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -13,3 +13,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['user', 'elo_rating', 'total_debates', 'wins', 'losses']
+
+
+class UserFeedbackSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserFeedback
+        fields = ['id', 'feedback_type', 'title', 'message', 'created_at']
+        read_only_fields = ['id', 'created_at']
