@@ -132,3 +132,11 @@ class ViewerReaction(models.Model):
 
     def __str__(self):
         return f"ViewerReaction for {self.debate_viewer.user.username}"
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "message"],
+                name="unique_user_message_reaction"
+            )
+        ]

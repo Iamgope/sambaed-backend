@@ -7,7 +7,7 @@ from typing import Optional
 from django.db.models import Q, QuerySet
 from django.contrib.auth.models import User
 
-from debate.models import Debate, DebateViewer, Judgement, MatchQueue, Message, Round, Topic
+from debate.models import Debate, DebateViewer, Judgement, MatchQueue, Message, Round, Topic, ViewerReaction
 from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus, ProOrCon, RoundType
 
 
@@ -256,4 +256,21 @@ def get_or_create_debate_viewer(*, user: User, debate_id: int, status: DebateVie
         user=user,
         debate_id=debate_id,
         status=status,
+    )
+
+
+def update_debate_viewer_status(*, id: int, status: DebateViewerStatus):
+    return DebateViewer.objects.filter(id=id).update(status=status)
+
+
+def is_user_debate_viewer(*, user_id: int, debate_id: int) -> bool:
+    return DebateViewer.objects.filter(
+        user_id=user_id, debate_id=debate_id, status=DebateViewerStatus.JOINED
+    ).exist()
+
+def add_viewer_reaction(*, user_id: int, message_id: int, reaction: str) -> ViewerReaction:
+    return ViewerReaction.objects.create(
+        user_id=user_id,
+        message_id=message_id,
+        reaction=reaction
     )

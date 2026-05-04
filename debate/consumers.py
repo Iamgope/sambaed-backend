@@ -7,10 +7,10 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
 
 from base.decorators import websocket_catch_service_exception
-from debate.constants import DebateStatus, MatchQueueStatus
-from debate.selectors import update_debate_status, update_match_queue_status
+from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus
+from debate.selectors import update_debate_status, update_debate_viewer_status, update_match_queue_status
 from debate.serializers import DebateViewerSerializer, MessageSerializer, RoundSerializer
-from debate.services import _join_queue_outcome, create_debate_viewer, get_pro_or_con, submit_message, leave_queue
+from debate.services import _join_queue_outcome, check_and_add_user_reaction, create_debate_viewer, get_pro_or_con, submit_message, leave_queue
 from debate.tasks import send_advance_round_event
 
 logger = logging.getLogger(__name__)
@@ -62,6 +62,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         await self.handle_leave_queue({})
+        await self.viewer_left(data={"status": DebateViewerStatus.DISCONNECTED})
         if getattr(self, 'debate_group_name', None):
             await self.channel_layer.group_discard(
                 self.debate_group_name, self.channel_name
@@ -85,6 +86,8 @@ class DebateConsumer(AsyncWebsocketConsumer):
             "join_queue": self.handle_join_queue,
             "leave_queue": self.handle_leave_queue,
             "join_viewer": self.handle_join_viewer,
+            "viewer_left": self.viewer_left,
+            "viewer_reaction": self.add_viewer_reaction,
         }
 
     @websocket_catch_service_exception
@@ -246,12 +249,35 @@ class DebateConsumer(AsyncWebsocketConsumer):
         if not debate_id:
             await self._send_error("Debate ID is required")
             return
+        self.debate_id = debate_id
         await self._add_to_debate_group(debate_id)
         debate_viewer = await database_sync_to_async(create_debate_viewer)(
             user=self.user, debate_id=debate_id
         )
+        self.viewer_id = debate_viewer.id
         await self.send(
             text_data=json.dumps(
                 {"type": "viewer.joined", "data": DebateViewerSerializer(debate_viewer).data}
             )
         )
+
+    async def viewer_left(self, data: Dict):
+        status = data.get("status", DebateViewerStatus.LEFT)
+        await self.channel_layer.group_discard(self.debate_group_name, self.channel_name)
+        await database_sync_to_async(update_debate_viewer_status)(id=self.viewer_id, status=status)
+        await self.channel_layer.group_send(
+            self.debate_group_name,
+            {
+                "type": "viewer_left",
+                "data": {},
+
+            }
+        )
+
+    async def add_viewer_reaction(self, data: Dict):
+        reaction = data.get("reaction")
+        message_id = data.get("message_id")
+        await database_sync_to_async(check_and_add_user_reaction)(
+            user=self.user, reaction=reaction, message_id=message_id
+        )
+

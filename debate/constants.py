@@ -33,12 +33,10 @@ class DebateViewerStatus(models.TextChoices):
     JOINED = 'JOINED', 'Joined'
     LEFT = 'LEFT', 'Left'
     DISCONNECTED = 'DISCONNECTED', 'Disconnected'
-    BANNED = 'BANNED', 'Banned'
     KICKED = 'KICKED', 'Kicked'
     MUTED = 'MUTED', 'Muted'
     UNMUTED = 'UNMUTED', 'Unmuted'
     BANNED = 'BANNED', 'Banned'
-    KICKED = 'KICKED', 'Kicked'
 
 
 class ViewerReactionType(models.TextChoices):
@@ -47,6 +45,5 @@ class ViewerReactionType(models.TextChoices):
     LOVE = 'LOVE', 'Love'
     SUPPORT = 'SUPPORT', 'Support'
     OPPOSE = 'OPPOSE', 'Oppose'
-    THUMBS_UP = 'THUMBS_UP', 'Thumbs Up'
     THUMBS_DOWN = 'THUMBS_DOWN', 'Thumbs Down'
     THUMBS_UP = 'THUMBS_UP', 'Thumbs Up'

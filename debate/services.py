@@ -318,3 +318,10 @@ def create_debate_viewer(*, user: User, debate_id: int) -> DebateViewer:
     if not is_created:
         raise ServiceException(message="You are already a viewer of this debate")
     return debate_viewer
+
+
+def check_and_add_user_reaction(*, user: User, reaction: str, message_id: int, debate_id):
+    if not selectors.is_user_debate_viewer(user_id=user.id, debate_id=debate_id):
+        raise ServiceException("You are not the viewer for this debate")
+    
+    return selectors.add_viewer_reaction(user_id=user.id, reaction=reaction, message_id=message_id)
