@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from users.constants import DeviceType
 
 # Create your models here.
-class UserProfile(User):
+class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     elo_rating = models.IntegerField(default=1200)
     total_debates = models.IntegerField(default=0)
