@@ -1,7 +1,14 @@
 from django.db import models
 from django.contrib.auth.models import User
 
-from debate.constants import MatchQueueStatus, ProOrCon, RoundType, DebateStatus
+from debate.constants import (
+    MatchQueueStatus,
+    ProOrCon,
+    RoundType,
+    DebateStatus,
+    DebateViewerStatus,
+    ViewerReactionType,
+)
 
 
 class Category(models.Model):
@@ -104,3 +111,24 @@ class MatchQueue(models.Model):
 
     def __str__(self):
         return f"MatchQueue for {self.user.username}"
+
+
+class DebateViewer(models.Model):
+    debate = models.ForeignKey(Debate, on_delete=models.CASCADE, related_name='viewers')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=DebateViewerStatus.choices)
+    left_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"DebateViewer for {self.user.username}"
+
+
+class ViewerReaction(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    message = models.ForeignKey(Message, on_delete=models.CASCADE)
+    reaction = models.CharField(max_length=20, choices=ViewerReactionType.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"ViewerReaction for {self.debate_viewer.user.username}"

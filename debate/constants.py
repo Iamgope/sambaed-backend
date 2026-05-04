@@ -1,5 +1,7 @@
 from django.db import models
 
+MAX_MESSAGE_LENGTH = 400
+
 
 class DebateStatus(models.TextChoices):
     MATCHED = 'MATCHED', 'Matched'
@@ -27,6 +29,24 @@ class ProOrCon(models.TextChoices):
     PRO = 'PRO', 'Pro'
     CON = 'CON', 'Con'
     
+class DebateViewerStatus(models.TextChoices):
+    JOINED = 'JOINED', 'Joined'
+    LEFT = 'LEFT', 'Left'
+    DISCONNECTED = 'DISCONNECTED', 'Disconnected'
+    BANNED = 'BANNED', 'Banned'
+    KICKED = 'KICKED', 'Kicked'
+    MUTED = 'MUTED', 'Muted'
+    UNMUTED = 'UNMUTED', 'Unmuted'
+    BANNED = 'BANNED', 'Banned'
+    KICKED = 'KICKED', 'Kicked'
 
 
-MAX_MESSAGE_LENGTH = 400
+class ViewerReactionType(models.TextChoices):
+    LIKE = 'LIKE', 'Like'
+    DISLIKE = 'DISLIKE', 'Dislike'
+    LOVE = 'LOVE', 'Love'
+    SUPPORT = 'SUPPORT', 'Support'
+    OPPOSE = 'OPPOSE', 'Oppose'
+    THUMBS_UP = 'THUMBS_UP', 'Thumbs Up'
+    THUMBS_DOWN = 'THUMBS_DOWN', 'Thumbs Down'
+    THUMBS_UP = 'THUMBS_UP', 'Thumbs Up'

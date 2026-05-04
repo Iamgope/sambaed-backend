@@ -10,8 +10,8 @@ from django.db import transaction
 from django.contrib.auth.models import User
 
 from base.exception import ServiceException
-from debate.constants import DebateStatus, MatchQueueStatus, ProOrCon, RoundType
-from debate.models import Debate, Judgement, Message, MatchQueue, Round, Topic
+from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus, ProOrCon, RoundType
+from debate.models import Debate, DebateViewer, Judgement, Message, MatchQueue, Round, Topic
 from debate import selectors
 from debate.serializers import DebateListSerializer, TopicSerializer
 
@@ -309,3 +309,12 @@ def group_topics_by_category(*, topics: list[Topic]) -> Dict:
         result[category_name]["description"] = topic_data['category']["description"]
         result[category_name]["background_image"] = topic_data["category"]["background_image"]
     return result
+
+
+def create_debate_viewer(*, user: User, debate_id: int) -> DebateViewer:
+    debate_viewer, is_created = selectors.get_or_create_debate_viewer(
+        user=user, debate_id=debate_id, status=DebateViewerStatus.JOINED
+    )
+    if not is_created:
+        raise ServiceException(message="You are already a viewer of this debate")
+    return debate_viewer

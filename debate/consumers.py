@@ -9,8 +9,8 @@ from django.contrib.auth.models import AnonymousUser
 from base.decorators import websocket_catch_service_exception
 from debate.constants import DebateStatus, MatchQueueStatus
 from debate.selectors import update_debate_status, update_match_queue_status
-from debate.serializers import MessageSerializer, RoundSerializer
-from debate.services import _join_queue_outcome, get_pro_or_con, submit_message, leave_queue
+from debate.serializers import DebateViewerSerializer, MessageSerializer, RoundSerializer
+from debate.services import _join_queue_outcome, create_debate_viewer, get_pro_or_con, submit_message, leave_queue
 from debate.tasks import send_advance_round_event
 
 logger = logging.getLogger(__name__)
@@ -84,8 +84,10 @@ class DebateConsumer(AsyncWebsocketConsumer):
             "message": self.handle_message,
             "join_queue": self.handle_join_queue,
             "leave_queue": self.handle_leave_queue,
+            "join_viewer": self.handle_join_viewer,
         }
 
+    @websocket_catch_service_exception
     async def receive(self, text_data=None, bytes_data=None):
         if not text_data:
             await self._send_error("Expected text data")
@@ -236,5 +238,20 @@ class DebateConsumer(AsyncWebsocketConsumer):
         await self.send(
             text_data=json.dumps(
                 {'type': 'message.new', 'message': event.get('message', {})}
+            )
+        )
+
+    async def handle_join_viewer(self, data: Dict):
+        debate_id = data.get('debate_id')
+        if not debate_id:
+            await self._send_error("Debate ID is required")
+            return
+        await self._add_to_debate_group(debate_id)
+        debate_viewer = await database_sync_to_async(create_debate_viewer)(
+            user=self.user, debate_id=debate_id
+        )
+        await self.send(
+            text_data=json.dumps(
+                {"type": "viewer.joined", "data": DebateViewerSerializer(debate_viewer).data}
             )
         )

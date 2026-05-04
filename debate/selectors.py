@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
+from time import timezone
 from typing import Optional
 
 from django.db.models import Q, QuerySet
 from django.contrib.auth.models import User
 
-from debate.models import Debate, Judgement, MatchQueue, Message, Round, Topic
-from debate.constants import DebateStatus, MatchQueueStatus, ProOrCon, RoundType
+from debate.models import Debate, DebateViewer, Judgement, MatchQueue, Message, Round, Topic
+from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus, ProOrCon, RoundType
 
 
 # ── Topics & debates (read) ──────────────────────────────────────────────
@@ -247,4 +248,12 @@ def get_messages_for_debate_and_user(*, debate_id: int, user_id: int) -> QuerySe
         .filter(debate_id=debate_id, user_id=user_id)
         .select_related('user', 'round')
         .order_by('created_at')
+    )
+
+
+def get_or_create_debate_viewer(*, user: User, debate_id: int, status: DebateViewerStatus) -> DebateViewer:
+    return DebateViewer.objects.get_or_create(
+        user=user,
+        debate_id=debate_id,
+        status=status,
     )

@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 
 from debate.models import Debate, Round, Message, Judgement, MatchQueue, Topic, Category
+from users.serializers import UserSerializer
 
 
 class UserMinimalSerializer(serializers.ModelSerializer):
@@ -97,3 +98,14 @@ class JoinQueueSerializer(serializers.Serializer):
 
 class SubmitMessageSerializer(serializers.Serializer):
     content = serializers.CharField(max_length=400, min_length=1)
+
+
+class DebateViewerSerializer(serializers.Serializer):
+    user = UserSerializer(read_only=True)
+    debate_id = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = ["id", "debate_id", "user", "status", "joined_at", "left_at"]
+    
+    def get_debate_id(self, obj):
+        return obj.debate_id
