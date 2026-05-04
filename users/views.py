@@ -1,4 +1,3 @@
-from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -6,9 +5,9 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from base.decorators import handle_exception
 from base.response import status_200, status_400
 
-from users.serializers import UserFeedbackSerializer, UserProfileSerializer
+from users.serializers import UserDeviceSerializer, UserFeedbackSerializer, UserProfileSerializer
 from users.selectors import get_user_feedbacks, get_user_profile
-from users.services import create_feedback
+from users.services import create_feedback, register_device
 
 
 # Create your views here.
@@ -51,3 +50,23 @@ class FeedbackView(APIView):
             data={"feedback": UserFeedbackSerializer(feedback).data},
         )
 
+
+class DeviceRegistrationView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @handle_exception
+    def post(self, request):
+        serializer = UserDeviceSerializer(data=request.data)
+        if not serializer.is_valid():
+            return status_400(message="Invalid data", data=serializer.errors)
+        device = register_device(
+            user=request.user,
+            device_id=serializer.validated_data["device_id"],
+            device_type=serializer.validated_data["device_type"],
+            device_token=serializer.validated_data["device_token"],
+        )
+        return status_200(
+            message="Device registered",
+            data={"device": UserDeviceSerializer(device).data},
+        )

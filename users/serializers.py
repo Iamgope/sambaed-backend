@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from users.models import UserFeedback, UserProfile
+from users.models import UserDevice, UserFeedback, UserProfile
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -20,3 +20,9 @@ class UserFeedbackSerializer(serializers.ModelSerializer):
         model = UserFeedback
         fields = ['id', 'feedback_type', 'title', 'message', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+class UserDeviceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserDevice
+        fields = ['device_id', 'device_type', 'device_token']

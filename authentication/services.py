@@ -3,7 +3,7 @@ from typing import Dict, Optional, Tuple
 
 
 # Local
-from authentication.selectors import get_or_create_user
+from authentication.selectors import create_user_profile, get_or_create_user
 from authentication.utils.google_authentication import google_oauth
 
 # Third Party
@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from base.exception import ServiceException
+from users.models import UserProfile
 
 def generate_google_login_url():
     return google_oauth.create_google_login_url()
@@ -23,6 +24,7 @@ def create_user_by_google_data(*, data: Dict) -> Tuple[User, bool]:
     user_data = {"first_name": data.pop("given_name", None), "last_name": data.pop("family_name", None)}
     user, is_created = get_or_create_user(email=email, extra_data=user_data)
     if is_created:
+        create_user_profile(user=user)
         return user, True
     if not user.is_active:
         raise ServiceException("User is blocked or deleted")
