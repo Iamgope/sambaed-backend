@@ -10,7 +10,14 @@ from base.decorators import websocket_catch_service_exception
 from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus
 from debate.selectors import update_debate_status, update_debate_viewer_status, update_match_queue_status
 from debate.serializers import DebateViewerSerializer, MessageSerializer, RoundSerializer
-from debate.services import join_queue_outcome, check_and_add_user_reaction, create_debate_viewer, get_pro_or_con, submit_message, leave_queue
+from debate.services import (
+    join_queue_outcome,
+    check_and_add_user_reaction,
+    create_debate_viewer,
+    get_pro_or_con,
+    submit_message,
+    leave_queue
+)
 from debate.tasks import send_advance_round_event
 
 logger = logging.getLogger(__name__)
