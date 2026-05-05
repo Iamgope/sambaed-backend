@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from time import timezone
+from django.utils import timezone
 from typing import Optional
 
 from django.db.models import Q, QuerySet
@@ -192,7 +192,6 @@ def create_next_round(
 # ── Judgements (write) ────────────────────────────────────────────────
 
 def apply_judgement_outcome(*, debate: Debate, data: dict) -> Judgement:
-    from django.utils import timezone
 
     Judgement.objects.filter(debate=debate).delete()
     winner_user = debate.user_pro if data["winner"] == "pro" else debate.user_con

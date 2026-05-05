@@ -1,4 +1,3 @@
-from pyexpat import model
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -44,6 +43,7 @@ class UserFeedback(models.Model):
 
 class ApplicationConfig(models.Model):
     name = models.CharField(max_length=256)
+    properties = models.JSONField(default=dict)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

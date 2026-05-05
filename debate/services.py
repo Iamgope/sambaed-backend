@@ -13,6 +13,8 @@ from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus,
 from debate.models import Debate, DebateViewer, Judgement, Message, MatchQueue, Round, Topic
 from debate import selectors
 from debate.serializers import DebateListSerializer, TopicSerializer
+from users.constants import ApplicationConfigName
+from users.selectors import get_application_config_by_name
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +191,8 @@ def _call_judge(*, debate: Debate, model: str) -> dict:
     from debate.utils.claude_client import judge_client
 
     transcript = _build_transcript(debate=debate)
-    return judge_client.judge(transcript=transcript, model=model)
+    config = get_debate_judge_config()
+    return judge_client.judge(transcript=transcript, model=model, judge_config=config)
 
 
 def dispute_judgement(*, user: User, debate_id: int) -> Judgement:
@@ -285,3 +288,8 @@ def check_and_add_user_reaction(*, user: User, reaction: str, message_id: int, d
         raise ServiceException("You are not the viewer for this debate")
     
     return selectors.add_viewer_reaction(user_id=user.id, reaction=reaction, message_id=message_id)
+
+
+def get_debate_judge_config():
+    config = get_application_config_by_name(name=ApplicationConfigName.DEBATE_JUDGE.value)
+    return config.properties if config else {}

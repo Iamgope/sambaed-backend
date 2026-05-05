@@ -1,4 +1,5 @@
 import json
+from typing import Dict
 
 import anthropic
 from django.conf import settings
@@ -49,15 +50,17 @@ class ClaudeJudgeClient:
             self._client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
         return self._client
 
-    def judge(self, *, transcript: str, model: str) -> dict:
+    def judge(self, *, transcript: str, judge_config: Dict) -> dict:
         client = self._get_client()
+        system_prompt = judge_config.get("system_prompt", _JUDGE_SYSTEM_PROMPT)
+        model = judge_client.get("model", "claude-sonnet-4-6")
         response = client.messages.create(
             model=model,
             max_tokens=1024,
             system=[
                 {
                     "type": "text",
-                    "text": _JUDGE_SYSTEM_PROMPT,
+                    "text": system_prompt,
                     # Cache the system prompt — it is identical for every debate.
                     # First call writes the cache; subsequent calls read it at ~10% cost.
                     "cache_control": {"type": "ephemeral"},
