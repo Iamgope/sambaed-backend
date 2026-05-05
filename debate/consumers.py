@@ -10,7 +10,7 @@ from base.decorators import websocket_catch_service_exception
 from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus
 from debate.selectors import update_debate_status, update_debate_viewer_status, update_match_queue_status
 from debate.serializers import DebateViewerSerializer, MessageSerializer, RoundSerializer
-from debate.services import _join_queue_outcome, check_and_add_user_reaction, create_debate_viewer, get_pro_or_con, submit_message, leave_queue
+from debate.services import join_queue_outcome, check_and_add_user_reaction, create_debate_viewer, get_pro_or_con, submit_message, leave_queue
 from debate.tasks import send_advance_round_event
 
 logger = logging.getLogger(__name__)
@@ -147,7 +147,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
             return
         
         pro_or_con = await database_sync_to_async(get_pro_or_con)(user=self.user, pro_or_con=pro_or_con)
-        outcome = await database_sync_to_async(_join_queue_outcome)(
+        outcome = await database_sync_to_async(join_queue_outcome)(
             user=self.user, topic_id=topic_id, pro_or_con=pro_or_con, category_id=category_id
         )
         await self.process_join_queue_outcome(outcome)

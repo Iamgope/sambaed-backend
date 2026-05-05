@@ -218,10 +218,7 @@ def dispute_judgement(*, user: User, debate_id: int) -> Judgement:
         ) from e
 
 
-# ── WebSocket helpers (call join_queue, serialize) ─────────────────────────
-
-
-def _join_queue_outcome(
+def join_queue_outcome(
     *,
     user: User,
     topic_id: Optional[int],
