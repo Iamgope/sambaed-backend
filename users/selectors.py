@@ -30,3 +30,7 @@ def create_user_feedback(*, user: User, feedback_type: str, title: str, message:
 
 def get_application_config_by_name(*, name: str) -> ApplicationConfig:
     return ApplicationConfig.objects.filter(name=name, is_active=True).first()
+
+
+def get_user_by_id(*, user_id: int) -> User:
+    return User.objects.filter(id=user_id).first()

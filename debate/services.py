@@ -13,6 +13,7 @@ from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus,
 from debate.models import Debate, DebateViewer, Judgement, Message, MatchQueue, Round, Topic
 from debate import selectors
 from debate.serializers import DebateListSerializer, TopicSerializer
+from debate.tasks import start_judgement_of_debate_and_share_result
 from users.constants import ApplicationConfigName
 from users.selectors import get_application_config_by_name
 
@@ -112,7 +113,7 @@ def submit_message(
         debate=debate, round_obj=current_round, user=user, content=content
     )
     next_round = _maybe_advance_round(
-        debate=debate, current_round=current_round
+        debate=debate, current_round=current_round, user=user
     )
     return message, next_round
 
@@ -142,7 +143,7 @@ def _is_user_turn(
 
 
 def _maybe_advance_round(
-    *, debate: Debate, current_round: Round
+    *, debate: Debate, current_round: Round, user: User
 ) -> Optional[Round]:
     rmsgs = selectors.get_messages_for_round(round_obj=current_round)
     if not (
@@ -158,6 +159,7 @@ def _maybe_advance_round(
         (rt, order) for rt, order in ROUND_SEQUENCE if order > current_round.order
     ]
     if not next_blocks:
+        start_judgement_of_debate_and_share_result.apply_async(args=[debate.id, user.id], countdown=20)
         return None
     next_type, next_order = next_blocks[0]
     return selectors.create_next_round(
@@ -187,12 +189,12 @@ def _build_transcript(debate: Debate) -> str:
     return "\n".join(lines)
 
 
-def _call_judge(*, debate: Debate, model: str) -> dict:
+def _call_judge(*, debate: Debate) -> dict:
     from debate.utils.claude_client import judge_client
 
     transcript = _build_transcript(debate=debate)
     config = get_debate_judge_config()
-    return judge_client.judge(transcript=transcript, model=model, judge_config=config)
+    return judge_client.judge(transcript=transcript, judge_config=config)
 
 
 def dispute_judgement(*, user: User, debate_id: int) -> Judgement:
@@ -208,7 +210,7 @@ def dispute_judgement(*, user: User, debate_id: int) -> Judgement:
 
     selectors.set_debate_status(debate=debate, status=DebateStatus.DISPUTED)
     try:
-        data = _call_judge(debate=debate, model=JUDGE_MODEL_ESCALATION)
+        data = _call_judge(debate=debate)
         return selectors.apply_judgement_outcome(debate=debate, data=data)
     except Exception as e:
         logger.error("Dispute judging failed for debate %s: %s", debate.id, e, exc_info=True)
