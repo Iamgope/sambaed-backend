@@ -1,3 +1,4 @@
+from enum import Enum
 from django.db import models
 
 
@@ -12,3 +13,7 @@ class FeedbackType(models.TextChoices):
     FEATURE_REQUEST = 'FEATURE_REQUEST', 'Feature Request'
     GENERAL = 'GENERAL', 'General'
     APP_REVIEW = 'APP_REVIEW', 'App Review'
+
+
+class ApplicationConfigName(Enum):
+    TEST = "TEST"

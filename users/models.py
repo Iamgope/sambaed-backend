@@ -1,3 +1,4 @@
+from pyexpat import model
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -39,3 +40,13 @@ class UserFeedback(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.feedback_type}"
+
+
+class ApplicationConfig(models.Model):
+    name = models.CharField(max_length=256)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name

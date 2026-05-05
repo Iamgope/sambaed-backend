@@ -1,6 +1,5 @@
 from collections import defaultdict
 from typing import Dict
-import json
 import random
 import logging
 from typing import Optional
@@ -25,38 +24,6 @@ ROUND_SEQUENCE = [
     (RoundType.REBUTTAL, 2),
     (RoundType.CLOSING, 3),
 ]
-
-JUDGE_PROMPT = """\
-You are a strict but fair debate judge. Evaluate this 1v1 structured debate objectively.
-
-{transcript}
-
-Score each debater 1-10 on four dimensions:
-- Argument Strength (30%): coherence and support for their position
-- Rebuttal/Engagement (30%): addressing the opponent's points
-- Persuasiveness (25%): moving the needle on the topic
-- Clarity (15%): ease of following the argument
-
-Respond ONLY with valid JSON, no extra text:
-{{
-  "winner": "pro" or "con",
-  "pro": {{
-    "argument_score": <1-10>,
-    "rebuttal_score": <1-10>,
-    "clarity_score": <1-10>,
-    "persuasion_score": <1-10>
-  }},
-  "con": {{
-    "argument_score": <1-10>,
-    "rebuttal_score": <1-10>,
-    "clarity_score": <1-10>,
-    "persuasion_score": <1-10>
-  }},
-  "reasoning": "<2-3 sentence verdict rationale>",
-  "strongest_moment": "<exact quote of the single best argument from the debate>",
-  "coaching_tip_pro": "<one specific actionable improvement tip for the pro debater>",
-  "coaching_tip_con": "<one specific actionable improvement tip for the con debater>"
-}}"""
 
 
 # ── Queue / Matchmaking ──────────────────────────────────────────────────────
@@ -219,17 +186,10 @@ def _build_transcript(debate: Debate) -> str:
 
 
 def _call_judge(*, debate: Debate, model: str) -> dict:
-    import anthropic
-    from django.conf import settings
+    from debate.utils.claude_client import judge_client
 
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
     transcript = _build_transcript(debate=debate)
-    response = client.messages.create(
-        model=model,
-        max_tokens=1024,
-        messages=[{"role": "user", "content": JUDGE_PROMPT.format(transcript=transcript)}],
-    )
-    return json.loads(response.content[0].text.strip())
+    return judge_client.judge(transcript=transcript, model=model)
 
 
 def dispute_judgement(*, user: User, debate_id: int) -> Judgement:

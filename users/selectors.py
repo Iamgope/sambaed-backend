@@ -1,7 +1,7 @@
 from typing import List
 
 from django.contrib.auth.models import User
-from users.models import UserDevice, UserFeedback, UserProfile
+from users.models import ApplicationConfig, UserDevice, UserFeedback, UserProfile
 
 
 def get_user_profile(*, user_id: int) -> UserProfile:
@@ -26,3 +26,7 @@ def create_user_feedback(*, user: User, feedback_type: str, title: str, message:
         title=title,
         message=message,
     )
+
+
+def get_application_config_by_name(*, name: str) -> ApplicationConfig:
+    return ApplicationConfig.objects.filter(name=name, is_active=True).first()
