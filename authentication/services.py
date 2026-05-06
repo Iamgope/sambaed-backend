@@ -11,7 +11,7 @@ from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from base.exception import ServiceException
-from users.models import UserProfile
+
 
 def generate_google_login_url():
     return google_oauth.create_google_login_url()

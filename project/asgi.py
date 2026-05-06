@@ -10,7 +10,7 @@ django_asgi_app = get_asgi_application()
 
 from channels.routing import ProtocolTypeRouter, URLRouter
 from debate.consumers import DebateConsumer
-from debate.middleware import JWTAuthMiddleware
+from base.middleware import JWTAuthMiddleware
 
 application = ProtocolTypeRouter({
     'http': django_asgi_app,

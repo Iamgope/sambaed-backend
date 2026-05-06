@@ -57,13 +57,12 @@ class DebateConsumer(AsyncWebsocketConsumer):
     # ── Connection lifecycle ──────────────────────────────────────────────────
 
     async def connect(self):
-        self.user = self.scope.get('user')
-
-        if not self.user or isinstance(self.user, AnonymousUser):
+        if not self.scope.get('user') or isinstance(self.user, AnonymousUser):
             await self.close(code=4001)
             return
-
-        self.user_group_name = f'user_{self.user.id}'
+        self.user = self.scope["user"]
+        self.app_version = self.scope["app_version"]
+        self.user_group_name = f"user_{self.user.id}"
 
         await self.channel_layer.group_add(self.user_group_name, self.channel_name)
         await self.accept()
