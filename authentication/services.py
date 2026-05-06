@@ -8,6 +8,7 @@ from authentication.utils.google_authentication import google_oauth
 
 # Third Party
 from django.contrib.auth.models import User
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from base.exception import ServiceException
@@ -32,9 +33,17 @@ def create_user_by_google_data(*, data: Dict) -> Tuple[User, bool]:
     return user, is_created
 
 
-def get_jwt_access_token(*, user: User) -> str:
+def get_jwt_access_token(*, user: User) -> Tuple[str, str]:
     refresh = RefreshToken.for_user(user)
-    return str(refresh.access_token)
+    return str(refresh.access_token), str(refresh)
+
+
+def refresh_access_token(*, refresh_token: str) -> str:
+    try:
+        token = RefreshToken(refresh_token)
+        return str(token.access_token)
+    except TokenError as e:
+        raise ServiceException(str(e))
 
 
 def get_user_data_from_google_code(*, code: Optional[str]) -> Dict:
