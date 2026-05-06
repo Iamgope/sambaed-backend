@@ -5,7 +5,6 @@ from celery import shared_task
 from channels.layers import get_channel_layer
 
 from debate.serializers import JudgementSerializer, MessageSerializer, RoundSerializer
-from debate.services import dispute_judgement
 from users.selectors import get_user_by_id
 
 
@@ -23,6 +22,8 @@ def send_advance_round_event(group_name: str, data: dict) -> None:
 
 @shared_task
 def start_judgement_of_debate_and_share_result(debate_id: int, user_id: int, group_name: str):
+    from debate.services import dispute_judgement
+
     user = get_user_by_id(user_id=user_id)
     judgement = dispute_judgement(user=user, debate_id=debate_id)
     channel_layer = get_channel_layer()
@@ -58,19 +59,18 @@ def bot_respond(debate_id: int) -> None:
         debate_group,
         {"type": "message.new", "message": MessageSerializer(message).data},
     )
-
-    if next_round:
-        async_to_sync(channel_layer.group_send)(
-            debate_group,
-            {"type": "round.advance", "data": RoundSerializer(next_round).data},
-        )
-
-        # Check whether the bot goes first in the new round (e.g. CON opens CLOSING)
-        debate = get_debate_by_id(debate_id=debate_id)
-        if debate:
-            bot_user = get_bot_user_in_debate(debate=debate)
-            current_round = get_current_round(debate=debate)
-            if bot_user and current_round and _is_user_turn(
-                debate=debate, current_round=current_round, user=bot_user
-            ):
-                bot_respond.apply_async(args=[debate_id], countdown=random.randint(10, 18))
+    if not next_round:
+        return 
+    async_to_sync(channel_layer.group_send)(
+        debate_group,
+        {"type": "round.advance", "data": RoundSerializer(next_round).data},
+    )
+    # Check whether the bot goes first in the new round (e.g. CON opens CLOSING)
+    debate = get_debate_by_id(debate_id=debate_id)
+    if debate:
+        bot_user = get_bot_user_in_debate(debate=debate)
+        current_round = get_current_round(debate=debate)
+        if bot_user and current_round and _is_user_turn(
+            debate=debate, current_round=current_round, user=bot_user
+        ):
+            bot_respond.apply_async(args=[debate_id], countdown=random.randint(10, 18))
