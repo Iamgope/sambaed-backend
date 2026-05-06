@@ -7,6 +7,7 @@ from typing import Optional
 from django.utils import timezone
 from django.db import transaction
 from django.contrib.auth.models import User
+from django.conf import settings
 
 from base.exception import ServiceException
 from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus, ProOrCon, RoundType
@@ -18,6 +19,9 @@ from users.constants import ApplicationConfigName
 from users.selectors import get_application_config_by_name
 
 logger = logging.getLogger(__name__)
+
+BOT_USERNAME = getattr(settings, "DEBATE_BOT_USERNAME", "vaad_bot")
+BOT_QUEUE_WAIT_SECONDS = getattr(settings, "BOT_QUEUE_WAIT_SECONDS", 60)
 
 JUDGE_MODEL_DEFAULT = "claude-haiku-4-5-20251001"
 JUDGE_MODEL_ESCALATION = "claude-sonnet-4-6"
@@ -53,9 +57,14 @@ def join_queue(
         return _create_match(
             user=user, opponent_entry=opponent_entry, topic=topic, pro_or_con=pro_or_con
         )
-    return selectors.create_match_queue_entry(
+
+    entry = selectors.create_match_queue_entry(
         user=user, topic=topic, pro_or_con=pro_or_con, status=MatchQueueStatus.PENDING
     )
+    # Schedule bot fallback — if no human joins within the wait window, match with bot
+    from debate.tasks import assign_bot_if_no_match
+    assign_bot_if_no_match.apply_async(args=[entry.id], countdown=BOT_QUEUE_WAIT_SECONDS)
+    return entry
 
 @transaction.atomic
 def _create_match(
@@ -292,3 +301,181 @@ def check_and_add_user_reaction(*, user: User, reaction: str, message_id: int, d
 def get_debate_judge_config():
     config = get_application_config_by_name(name=ApplicationConfigName.DEBATE_JUDGE.value)
     return config.properties if config else {}
+
+
+# ── Bot matchmaking & AI responses ──────────────────────────────────────────
+
+
+def get_or_create_bot_user() -> User:
+    user, created = User.objects.get_or_create(
+        username=BOT_USERNAME,
+        defaults={
+            "first_name": "Alex",
+            "email": f"{BOT_USERNAME}@vaadvivaad.internal",
+            "is_active": True,
+        },
+    )
+    if created:
+        from users.models import UserProfile
+        UserProfile.objects.create(user=user, is_bot=True)
+    return user
+
+
+def get_bot_user_in_debate(*, debate: Debate) -> Optional[User]:
+    from users.models import UserProfile
+    profile = (
+        UserProfile.objects.filter(
+            user__in=[debate.user_pro_id, debate.user_con_id], is_bot=True
+        )
+        .select_related("user")
+        .first()
+    )
+    return profile.user if profile else None
+
+
+def _build_bot_history(*, debate: Debate, bot_user: User) -> list[str]:
+    lines = []
+    for r in selectors.get_rounds_for_debate_ordered(debate=debate):
+        for msg in selectors.get_messages_for_debate_round_ordered(round_obj=r):
+            speaker = "You" if msg.user == bot_user else "Opponent"
+            lines.append(f"[{r.round_type}] {speaker}: {msg.content}")
+    return lines
+
+
+@transaction.atomic
+def _atomic_bot_submit(
+    *, debate: Debate, bot_user: User, argument: str
+) -> Optional[tuple[Message, Optional[Round]]]:
+    """Lock the current round before writing to prevent concurrent bot submissions."""
+    current_round = (
+        Round.objects.select_for_update()
+        .filter(debate=debate, ended_at__isnull=True)
+        .order_by("order")
+        .first()
+    )
+    if not current_round:
+        return None
+    if not _is_user_turn(debate=debate, current_round=current_round, user=bot_user):
+        return None
+
+    message = selectors.create_message_in_round(
+        debate=debate, round_obj=current_round, user=bot_user, content=argument
+    )
+    next_round = _maybe_advance_round(debate=debate, current_round=current_round, user=bot_user)
+    return message, next_round
+
+
+def generate_and_submit_bot_message(
+    *, debate_id: int
+) -> Optional[tuple[Message, Optional[Round]]]:
+    from debate.utils.bot_client import bot_client
+
+    debate = selectors.get_debate_by_id(debate_id=debate_id)
+    if not debate or debate.status != DebateStatus.ONGOING:
+        return None
+
+    bot_user = get_bot_user_in_debate(debate=debate)
+    if not bot_user:
+        return None
+
+    # Pre-check outside the transaction — avoids calling Claude when it's not bot's turn
+    current_round = selectors.get_current_round(debate=debate)
+    if not current_round:
+        return None
+    if not _is_user_turn(debate=debate, current_round=current_round, user=bot_user):
+        return None
+
+    side = "PRO" if bot_user == debate.user_pro else "CON"
+    history = _build_bot_history(debate=debate, bot_user=bot_user)
+
+    argument = bot_client.generate(
+        topic=debate.topic.title,
+        description=debate.topic.description,
+        side=side,
+        round_type=current_round.round_type,
+        history=history,
+    )
+
+    # Atomic check-and-insert with row lock prevents double-submission race
+    return _atomic_bot_submit(debate=debate, bot_user=bot_user, argument=argument)
+
+
+def schedule_bot_response_if_needed(*, debate_id: int) -> None:
+    from debate.tasks import bot_respond
+
+    debate = selectors.get_debate_by_id(debate_id=debate_id)
+    if not debate or debate.status != DebateStatus.ONGOING:
+        return
+
+    bot_user = get_bot_user_in_debate(debate=debate)
+    if not bot_user:
+        return
+
+    current_round = selectors.get_current_round(debate=debate)
+    if not current_round:
+        return
+
+    if _is_user_turn(debate=debate, current_round=current_round, user=bot_user):
+        bot_respond.apply_async(args=[debate_id], countdown=random.randint(10, 20))
+
+
+@transaction.atomic
+def match_with_bot(*, queue_id: int) -> None:
+    entry = (
+        MatchQueue.objects.select_for_update()
+        .filter(id=queue_id, status=MatchQueueStatus.PENDING)
+        .first()
+    )
+    if not entry:
+        return  # Already matched or cancelled by the time the task fires
+
+    bot_user = get_or_create_bot_user()
+    bot_side = ProOrCon.CON if entry.pro_or_con == ProOrCon.PRO else ProOrCon.PRO
+    user_pro = entry.user if entry.pro_or_con == ProOrCon.PRO else bot_user
+    user_con = entry.user if entry.pro_or_con == ProOrCon.CON else bot_user
+    now = timezone.now()
+
+    debate = Debate.objects.create(
+        topic=entry.topic,
+        user_pro=user_pro,
+        user_con=user_con,
+        status=DebateStatus.ONGOING,
+    )
+    Round.objects.create(
+        debate=debate,
+        round_type=RoundType.OPENING,
+        order=1,
+        started_at=now,
+    )
+    entry.status = MatchQueueStatus.MATCHED
+    entry.matched = True
+    entry.matched_at = now
+    entry.debate = debate
+    entry.save(update_fields=["status", "matched", "matched_at", "debate"])
+
+    MatchQueue.objects.create(
+        user=bot_user,
+        topic=entry.topic,
+        pro_or_con=bot_side,
+        status=MatchQueueStatus.MATCHED,
+        matched=True,
+        matched_at=now,
+        debate=debate,
+    )
+
+    # Notify the waiting user over their personal WebSocket group
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f"user_{entry.user_id}",
+        {
+            "type": "queue.matched",
+            "data": {"debate": DebateListSerializer(debate).data},
+        },
+    )
+
+    # Bot sends its OPENING argument first so the user has something to respond to immediately
+    from debate.tasks import bot_respond
+    bot_respond.apply_async(args=[debate.id], countdown=random.randint(8, 15))

@@ -16,7 +16,8 @@ from debate.services import (
     create_debate_viewer,
     get_pro_or_con,
     submit_message,
-    leave_queue
+    leave_queue,
+    schedule_bot_response_if_needed,
 )
 from debate.tasks import send_advance_round_event
 
@@ -142,6 +143,8 @@ class DebateConsumer(AsyncWebsocketConsumer):
             send_advance_round_event.apply_async(
                 args=[self.debate_group_name, RoundSerializer(next_round).data], countdown=10
             )
+        # If this is a bot debate and it's now the bot's turn, schedule its response
+        await database_sync_to_async(schedule_bot_response_if_needed)(debate_id=debate_id)
 
 
     @websocket_catch_service_exception(default_message="Could not join the queue")

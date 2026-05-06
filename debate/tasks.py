@@ -1,8 +1,10 @@
+import random
+
+from asgiref.sync import async_to_sync
 from celery import shared_task
 from channels.layers import get_channel_layer
 
-import debate
-from debate.serializers import JudgementSerializer
+from debate.serializers import JudgementSerializer, MessageSerializer, RoundSerializer
 from debate.services import dispute_judgement
 from users.selectors import get_user_by_id
 
@@ -10,7 +12,7 @@ from users.selectors import get_user_by_id
 @shared_task
 def send_advance_round_event(group_name: str, data: dict) -> None:
     channel_layer = get_channel_layer()
-    channel_layer.group_send(
+    async_to_sync(channel_layer.group_send)(
         group_name,
         {
             "type": "round.advance",
@@ -22,12 +24,53 @@ def send_advance_round_event(group_name: str, data: dict) -> None:
 @shared_task
 def start_judgement_of_debate_and_share_result(debate_id: int, user_id: int, group_name: str):
     user = get_user_by_id(user_id=user_id)
-    judgemnet = dispute_judgement(user=user, debate_id=debate_id)
+    judgement = dispute_judgement(user=user, debate_id=debate_id)
     channel_layer = get_channel_layer()
-    channel_layer.group_send(
+    async_to_sync(channel_layer.group_send)(
         group_name,
         {
             "type": "judgement",
-            "data":JudgementSerializer(judgemnet).data,
-        }
+            "data": JudgementSerializer(judgement).data,
+        },
     )
+
+
+@shared_task
+def assign_bot_if_no_match(queue_id: int) -> None:
+    from debate.services import match_with_bot
+    match_with_bot(queue_id=queue_id)
+
+
+@shared_task
+def bot_respond(debate_id: int) -> None:
+    from debate.services import generate_and_submit_bot_message, get_bot_user_in_debate, _is_user_turn
+    from debate.selectors import get_debate_by_id, get_current_round
+
+    result = generate_and_submit_bot_message(debate_id=debate_id)
+    if not result:
+        return
+
+    message, next_round = result
+    channel_layer = get_channel_layer()
+    debate_group = f"debate_{debate_id}"
+
+    async_to_sync(channel_layer.group_send)(
+        debate_group,
+        {"type": "message.new", "message": MessageSerializer(message).data},
+    )
+
+    if next_round:
+        async_to_sync(channel_layer.group_send)(
+            debate_group,
+            {"type": "round.advance", "data": RoundSerializer(next_round).data},
+        )
+
+        # Check whether the bot goes first in the new round (e.g. CON opens CLOSING)
+        debate = get_debate_by_id(debate_id=debate_id)
+        if debate:
+            bot_user = get_bot_user_in_debate(debate=debate)
+            current_round = get_current_round(debate=debate)
+            if bot_user and current_round and _is_user_turn(
+                debate=debate, current_round=current_round, user=bot_user
+            ):
+                bot_respond.apply_async(args=[debate_id], countdown=random.randint(10, 18))
