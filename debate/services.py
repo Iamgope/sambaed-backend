@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import partial
 from typing import Dict
 import random
 import logging
@@ -9,6 +10,7 @@ from django.db import transaction
 from django.contrib.auth.models import User
 from django.conf import settings
 
+from base.events import send_queue_matched_event
 from base.exception import ServiceException
 from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus, ProOrCon, RoundType
 from debate.models import Debate, DebateViewer, Judgement, Message, MatchQueue, Round, Topic
@@ -462,20 +464,9 @@ def match_with_bot(*, queue_id: int) -> None:
         matched_at=now,
         debate=debate,
     )
-
-    # Notify the waiting user over their personal WebSocket group
-    from channels.layers import get_channel_layer
-    from asgiref.sync import async_to_sync
-
-    channel_layer = get_channel_layer()
-    async_to_sync(channel_layer.group_send)(
-        f"user_{entry.user_id}",
-        {
-            "type": "queue.matched",
-            "data": {"debate": DebateListSerializer(debate).data},
-        },
-    )
-
+    transaction.on_commit(partial(send_queue_matched_event, entry, debate))
     # Bot sends its OPENING argument first so the user has something to respond to immediately
     from debate.tasks import bot_respond
-    bot_respond.apply_async(args=[debate.id], countdown=random.randint(8, 15))
+    transaction.on_commit(lambda:bot_respond.apply_async(args=[debate.id], countdown=random.randint(8, 15)))
+    # bot_respond.apply_async(args=[debate.id], countdown=random.randint(8, 15))
+
