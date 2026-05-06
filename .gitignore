@@ -209,3 +209,4 @@ postgres_data/
 staticfiles/
 postgres-data/
 rabbitmq/
+CLAUDE.md
