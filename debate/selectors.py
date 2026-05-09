@@ -143,6 +143,8 @@ def create_debate_for_queue_match(
         round_type=RoundType.OPENING,
         order=1,
         started_at=matched_at,
+        current_speaker=user_pro,
+        turn_started_at=matched_at,
     )
     opponent_entry.status = MatchQueueStatus.MATCHED
     opponent_entry.matched = True
@@ -179,14 +181,33 @@ def mark_round_ended(*, round_obj: Round, ended_at: datetime) -> None:
 
 
 def create_next_round(
-    *, debate: Debate, round_type: RoundType, order: int, started_at: datetime
+    *,
+    debate: Debate,
+    round_type: RoundType,
+    order: int,
+    started_at: datetime,
+    current_speaker: User,
 ) -> Round:
     return Round.objects.create(
         debate=debate,
         round_type=round_type,
         order=order,
         started_at=started_at,
+        current_speaker=current_speaker,
+        turn_started_at=started_at,
     )
+
+
+def set_round_current_speaker(
+    *, round_obj: Round, speaker: Optional[User], turn_started_at: Optional[datetime]
+) -> None:
+    round_obj.current_speaker = speaker
+    round_obj.turn_started_at = turn_started_at
+    round_obj.save(update_fields=["current_speaker", "turn_started_at"])
+
+
+def user_has_message_in_round(*, round_obj: Round, user: User) -> bool:
+    return Message.objects.filter(round=round_obj, user=user).exists()
 
 
 # ── Judgements (write) ────────────────────────────────────────────────

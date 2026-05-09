@@ -14,6 +14,7 @@ from debate.services import (
     join_queue_outcome,
     check_and_add_user_reaction,
     create_debate_viewer,
+    end_turn,
     get_pro_or_con,
     submit_message,
     leave_queue,
@@ -90,6 +91,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
     def event_mapping(self) -> Dict[str, Callable]:
         return {
             "message": self.handle_message,
+            "end_turn": self.handle_end_turn,
             "join_queue": self.handle_join_queue,
             "leave_queue": self.handle_leave_queue,
             "join_viewer": self.handle_join_viewer,
@@ -128,7 +130,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
     @websocket_catch_service_exception(default_message="Could not submit the message")
     async def handle_message_submit(self, content: str):
         debate_id = self.debate_id
-        message, next_round = await database_sync_to_async(submit_message)(
+        message = await database_sync_to_async(submit_message)(
             user=self.user, debate_id=debate_id, content=content
         )
         await self.channel_layer.group_send(
@@ -138,9 +140,20 @@ class DebateConsumer(AsyncWebsocketConsumer):
                 'message': MessageSerializer(message).data,
             },
         )
+
+    @websocket_catch_service_exception(default_message="Could not end your turn")
+    async def handle_end_turn(self, event_data: dict):
+        if not self.debate_id or not self.debate_group_name:
+            await self._send_error("No active debate")
+            return
+        debate_id = self.debate_id
+        next_round = await database_sync_to_async(end_turn)(
+            user=self.user, debate_id=debate_id
+        )
         if next_round:
             send_advance_round_event.apply_async(
-                args=[self.debate_group_name, RoundSerializer(next_round).data], countdown=10
+                args=[self.debate_group_name, RoundSerializer(next_round).data],
+                countdown=10,
             )
         # If this is a bot debate and it's now the bot's turn, schedule its response
         await database_sync_to_async(schedule_bot_response_if_needed)(debate_id=debate_id)

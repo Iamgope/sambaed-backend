@@ -58,6 +58,10 @@ class Round(models.Model):
     order = models.IntegerField()
     started_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
+    current_speaker = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+'
+    )
+    turn_started_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"Round {self.order} ({self.round_type}) — Debate #{self.debate_id}"

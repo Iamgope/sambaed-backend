@@ -98,9 +98,7 @@ def leave_queue(*, user: User) -> None:
 # ── Messages / Round progression ────────────────────────────────────────────
 
 
-def submit_message(
-    *, user: User, debate_id: int, content: str
-) -> tuple[Message, Optional[Round]]:
+def submit_message(*, user: User, debate_id: int, content: str) -> Message:
     debate = selectors.get_debate_by_id(debate_id=debate_id)
     if not debate:
         raise ServiceException(message="Debate not found")
@@ -120,64 +118,92 @@ def submit_message(
     ):
         raise ServiceException(message="It is not your turn to submit")
 
-    message = selectors.create_message_in_round(
+    return selectors.create_message_in_round(
         debate=debate, round_obj=current_round, user=user, content=content
     )
-    next_round = _maybe_advance_round(
-        debate=debate, current_round=current_round, user=user
-    )
-    return message, next_round
+
+
+def end_turn(*, user: User, debate_id: int) -> Optional[Round]:
+    debate = selectors.get_debate_by_id(debate_id=debate_id)
+    if not debate:
+        raise ServiceException(message="Debate not found")
+
+    if debate.status != DebateStatus.ONGOING:
+        raise ServiceException(message="This debate is not active")
+
+    if user not in (debate.user_pro, debate.user_con):
+        raise ServiceException(message="You are not a participant in this debate")
+
+    current_round = selectors.get_current_round(debate=debate)
+    if not current_round:
+        raise ServiceException(message="No active round found")
+
+    if not _is_user_turn(debate=debate, current_round=current_round, user=user):
+        raise ServiceException(message="It is not your turn")
+
+    if not selectors.user_has_message_in_round(round_obj=current_round, user=user):
+        raise ServiceException(
+            message="You must send at least one message before ending your turn"
+        )
+
+    return _advance_after_turn(debate=debate, current_round=current_round, ender=user)
 
 
 def _is_user_turn(
     *, debate: Debate, current_round: Round, user: User
 ) -> bool:
-    rmsgs = selectors.get_messages_for_round(round_obj=current_round)
-
-    if rmsgs.filter(user=user).exists():
-        return False
-
-    if current_round.round_type == RoundType.OPENING:
-        return True
-
-    if current_round.round_type == RoundType.REBUTTAL:
-        if user == debate.user_pro:
-            return True
-        return rmsgs.filter(user=debate.user_pro).exists()
-
-    if current_round.round_type == RoundType.CLOSING:
-        if user == debate.user_con:
-            return True
-        return rmsgs.filter(user=debate.user_con).exists()
-
-    return False
+    return current_round.current_speaker_id == user.id
 
 
-def _maybe_advance_round(
-    *, debate: Debate, current_round: Round, user: User
+def _speaker_order(*, debate: Debate, round_type: RoundType) -> list[User]:
+    if round_type == RoundType.CLOSING:
+        return [debate.user_con, debate.user_pro]
+    return [debate.user_pro, debate.user_con]
+
+
+def _next_speaker_in_round(*, debate: Debate, current_round: Round) -> Optional[User]:
+    order = _speaker_order(debate=debate, round_type=current_round.round_type)
+    try:
+        idx = next(
+            i for i, u in enumerate(order) if u.id == current_round.current_speaker_id
+        )
+    except StopIteration:
+        return None
+    return order[idx + 1] if idx + 1 < len(order) else None
+
+
+def _advance_after_turn(
+    *, debate: Debate, current_round: Round, ender: User
 ) -> Optional[Round]:
-    rmsgs = selectors.get_messages_for_round(round_obj=current_round)
-    if not (
-        rmsgs.filter(user=debate.user_pro).exists()
-        and rmsgs.filter(user=debate.user_con).exists()
-    ):
+    now = timezone.now()
+    next_speaker = _next_speaker_in_round(debate=debate, current_round=current_round)
+    if next_speaker:
+        selectors.set_round_current_speaker(
+            round_obj=current_round, speaker=next_speaker, turn_started_at=now
+        )
         return None
 
-    now = timezone.now()
+    selectors.set_round_current_speaker(
+        round_obj=current_round, speaker=None, turn_started_at=None
+    )
     selectors.mark_round_ended(round_obj=current_round, ended_at=now)
 
     next_blocks = [
         (rt, order) for rt, order in ROUND_SEQUENCE if order > current_round.order
     ]
     if not next_blocks:
-        start_judgement_of_debate_and_share_result.apply_async(args=[debate.id, user.id], countdown=20)
+        start_judgement_of_debate_and_share_result.apply_async(
+            args=[debate.id, ender.id], countdown=20
+        )
         return None
     next_type, next_order = next_blocks[0]
+    first_speaker = _speaker_order(debate=debate, round_type=next_type)[0]
     return selectors.create_next_round(
         debate=debate,
         round_type=next_type,
         order=next_order,
         started_at=now,
+        current_speaker=first_speaker,
     )
 
 
@@ -363,7 +389,9 @@ def _atomic_bot_submit(
     message = selectors.create_message_in_round(
         debate=debate, round_obj=current_round, user=bot_user, content=argument
     )
-    next_round = _maybe_advance_round(debate=debate, current_round=current_round, user=bot_user)
+    next_round = _advance_after_turn(
+        debate=debate, current_round=current_round, ender=bot_user
+    )
     return message, next_round
 
 
@@ -448,6 +476,8 @@ def match_with_bot(*, queue_id: int) -> None:
         round_type=RoundType.OPENING,
         order=1,
         started_at=now,
+        current_speaker=user_pro,
+        turn_started_at=now,
     )
     entry.status = MatchQueueStatus.MATCHED
     entry.matched = True
