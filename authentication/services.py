@@ -57,3 +57,10 @@ def get_user_data_from_google_code(*, code: Optional[str]) -> Dict:
     user_data = google_oauth.google_get_user_info(access_token=access_token)
 
     return user_data
+
+
+def get_user_data_from_google_id_token(*, id_token: Optional[str]) -> Dict:
+    if not id_token:
+        raise ServiceException('No id_token provided.')
+
+    return google_oauth.google_get_user_info_from_id_token(id_token=id_token)

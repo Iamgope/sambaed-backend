@@ -20,19 +20,19 @@ class GoogleOAuth:
         self.user_info_url = google_config["GOOGLE_USER_INFO_URL"]
         self.id_token_info_url = google_config["GOOGLE_ID_TOKEN_INFO_URL"]
 
-    def google_validate_id_token(self, id_token: str) -> bool:
+    def google_get_user_info_from_id_token(self, id_token: str) -> Dict[str, Any]:
         # Reference: https://developers.google.com/identity/sign-in/web/backend-auth#verify-the-integrity-of-the-id-token
         response = requests.get(self.id_token_info_url, params={'id_token': id_token})
 
         if not response.ok:
-            raise Exception('Failed to obtain id token info from Google.')
+            raise ServiceException('Failed to validate id_token with Google.')
 
-        audience = response.json()['aud']
+        payload = response.json()
 
-        if audience != self.client_id:
-            raise Exception('Invalid audience.')
+        if payload.get('aud') != self.client_id:
+            raise ServiceException('Invalid id_token audience.')
 
-        return True
+        return payload
 
     def google_get_access_token(self, code: str) -> str:
         # Reference: https://developers.google.com/identity/protocols/oauth2/web-server#obtainingaccesstokens

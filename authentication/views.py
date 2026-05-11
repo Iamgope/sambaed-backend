@@ -1,3 +1,4 @@
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
 from authentication.services import (
@@ -5,6 +6,7 @@ from authentication.services import (
     generate_google_login_url,
     get_jwt_access_token,
     get_user_data_from_google_code,
+    get_user_data_from_google_id_token,
     refresh_access_token,
 )
 from base.decorators import handle_exception
@@ -15,6 +17,7 @@ class GoogleLogin(APIView):
 
     def get(self, request, *args, **kwargs):
         login_url = generate_google_login_url()
+        print(f"{login_url=}")
         return status_200(message="Login successful", data={"url": login_url})
 
     def post(self, request, *args, **kwargs):
@@ -22,6 +25,7 @@ class GoogleLogin(APIView):
         user_data = get_user_data_from_google_code(code=code)
         user, is_created = create_user_by_google_data(data=user_data)
         access_token, refresh_token = get_jwt_access_token(user=user)
+        print(f"{code=}, {user=}")
         return status_200(
             message="Login successful",
             data={
@@ -33,11 +37,12 @@ class GoogleLogin(APIView):
 
 
 class GoogleLoginCallback(APIView):
+    permission_classes = [AllowAny]
 
     @handle_exception
     def post(self, request, *args, **kwargs):
-        code = request.data.get("code", None)
-        user_data = get_user_data_from_google_code(code=code)
+        id_token = request.data.get("id_token", None)
+        user_data = get_user_data_from_google_id_token(id_token=id_token)
         user, is_created = create_user_by_google_data(data=user_data)
         access_token, refresh_token = get_jwt_access_token(user=user)
         return status_200(

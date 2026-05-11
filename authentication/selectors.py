@@ -5,8 +5,8 @@ from users.models import UserProfile
 
 
 def get_or_create_user(*, email: str, extra_data: Dict) -> Tuple[User, bool]:
-    user, created = User.objects.get_or_create(email=email, defaults=extra_data)
+    user, created = User.objects.get_or_create(email=email, defaults=extra_data, username=email)
     return user, created
 
 def create_user_profile(*, user: User) -> UserProfile:
-    return UserProfile.objects.create(user=user)
+    return UserProfile.objects.get_or_create(user=user)
