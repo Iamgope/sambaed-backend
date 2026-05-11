@@ -13,8 +13,12 @@ from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus,
 
 # ── Topics & debates (read) ──────────────────────────────────────────────
 
-def get_active_topics() -> QuerySet[Topic]:
-    return Topic.objects.select_related("category").filter(is_active=True).order_by("priority")
+def get_active_topics(*, category_id: Optional[int]) -> QuerySet[Topic]:
+    query_filter = Q(is_active=True)
+    if category_id:
+        query_filter &= Q(category_id=category_id)
+
+    return Topic.objects.select_related("category").filter(query_filter).order_by("priority")
 
 
 def get_debate(*, debate_id: int) -> Debate:

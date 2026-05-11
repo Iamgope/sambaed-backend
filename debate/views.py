@@ -29,7 +29,8 @@ class TopicListView(APIView):
 
     @handle_exception
     def get(self, request):
-        topics = get_active_topics()
+        category_id = request.GET.get("category_id")
+        topics = get_active_topics(category_id=category_id)
         data = group_topics_by_category(topics=topics)
         return status_200(message="Topics fetched", data={"topics": data})
 
