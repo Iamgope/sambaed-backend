@@ -7,6 +7,7 @@ from typing import List, Optional
 from django.db.models import Q, QuerySet
 from django.contrib.auth.models import User
 
+import debate
 from debate.models import Category, Debate, DebateViewer, Judgement, MatchQueue, Message, Round, Topic, ViewerReaction
 from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus, ProOrCon, RoundType
 
@@ -26,8 +27,9 @@ def get_debate(*, debate_id: int) -> Debate:
 
 
 def get_user_debates(*, user: User) -> QuerySet[Debate]:
+    query_filter = (Q(user_pro=user) | Q(user_con=user))
     return (
-        Debate.objects.filter(Q(user_pro=user) | Q(user_con=user))
+        Debate.objects.filter(query_filter)
         .select_related("topic", "user_pro", "user_con", "winner")
         .order_by("-started_at")
     )
@@ -302,3 +304,12 @@ def add_viewer_reaction(*, user_id: int, message_id: int, reaction: str) -> View
 
 def get_active_categories() -> List[Category]:
     return Category.objects.filter(is_active=True)
+
+
+def get_debate_by_user_and_id(*, user: User, debate_id: int) -> Debate:
+    query_filter = Q(id=debate_id) & (Q(user_pro=user) | Q(user_con=user))
+    return Debate.objects.filter(query_filter).first()
+
+
+def get_messages_by_debate_id(*, debate_id: int) -> List[Message]:
+    return Message.objects.select_related("round", "debate", "user").filter(debate_id=debate_id)

@@ -14,7 +14,7 @@ from base.exception import ServiceException
 from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus, ProOrCon, RoundType
 from debate.models import Category, Debate, DebateViewer, Judgement, Message, MatchQueue, Round, Topic
 from debate import selectors
-from debate.serializers import CategorySerializer, DebateListSerializer, TopicSerializer
+from debate.serializers import CategorySerializer, DebateListSerializer, TopicSerializer, serialize_messages_of_debate
 from debate.tasks import start_judgement_of_debate_and_share_result
 from users.constants import ApplicationConfigName
 from users.selectors import get_application_config_by_name
@@ -518,3 +518,12 @@ def serialize_category_and_debate_rules(*, categories: List[Category]):
     categories_data = CategorySerializer(categories, many=True).data
     debate_rules = get_debate_ground_rules()
     return categories_data, debate_rules
+
+
+def get_user_debate_and_message(*, user: User, debate_id: int):
+    debate = selectors.get_debate_by_user_and_id(user=user, debate_id=debate_id)
+    if not debate:
+        raise ServiceException("This debate does not exist")
+    messages = selectors.get_messages_by_debate_id(debate_id=debate_id)
+    messages_data = serialize_messages_of_debate(messages=messages)
+    return messages_data

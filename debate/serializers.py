@@ -1,3 +1,4 @@
+from typing import Dict, List
 from rest_framework import serializers
 from django.contrib.auth.models import User
 
@@ -109,3 +110,23 @@ class DebateViewerSerializer(serializers.Serializer):
     
     def get_debate_id(self, obj):
         return obj.debate_id
+
+
+def serialize_messages_of_debate(*, messages: List[Message]) -> List[Dict]:
+    rounds_by_id: Dict[int, Dict] = {}
+    for message in messages:
+        round_obj = message.round
+        bucket = rounds_by_id.get(round_obj.id)
+        if bucket is None:
+            bucket = {
+                "round_id": round_obj.id,
+                "round_type": round_obj.round_type,
+                "order": round_obj.order,
+                "started_at": round_obj.started_at.isoformat() if round_obj.started_at else None,
+                "ended_at": round_obj.ended_at.isoformat() if round_obj.ended_at else None,
+                "messages": [],
+            }
+            rounds_by_id[round_obj.id] = bucket
+        bucket["messages"].append(MessageSerializer(message).data)
+
+    return sorted(rounds_by_id.values(), key=lambda r: r["order"])

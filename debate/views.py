@@ -16,7 +16,7 @@ from debate.selectors import (
     get_user_debates,
     get_debate,
 )
-from debate.services import  dispute_judgement, group_topics_by_category, serialize_category_and_debate_rules
+from debate.services import  dispute_judgement, get_user_debate_and_message, group_topics_by_category, serialize_category_and_debate_rules
 from debate.serializers import (
     DebateListSerializer,
     DebateDetailSerializer,
@@ -80,6 +80,11 @@ class MyDebatesListView(APIView):
 
     @handle_exception
     def get(self, request):
+        debate_id = request.GET.get("debate_id")
+        if debate_id:
+            data = get_user_debate_and_message(user=request.user, debate_id=debate_id)
+            return status_200(message="Fetch Debate Messages", data={"messages": data})
+
         debates = get_user_debates(user=request.user)
         return status_200(message="My debates fetched", data={"debates": DebateListSerializer(debates, many=True).data})
 
