@@ -58,15 +58,19 @@ class DebateConsumer(AsyncWebsocketConsumer):
     # ── Connection lifecycle ──────────────────────────────────────────────────
 
     async def connect(self):
-        if not self.scope.get('user') or isinstance(self.user, AnonymousUser):
+        if not self.scope.get('user'):
             await self.close(code=4001)
             return
         self.user = self.scope["user"]
         self.app_version = self.scope["app_version"]
         self.user_group_name = f"user_{self.user.id}"
+        self.debate_id = None
+        self.debate_group_name = None
+        self.is_viewer = False
 
         await self.channel_layer.group_add(self.user_group_name, self.channel_name)
         await self.accept()
+        logger.info(f"{self.user.id=}, {self.app_version=}, {self.user_group_name=} connected successfully")
 
     async def disconnect(self, close_code):
         await self.handle_leave_queue({})
@@ -77,6 +81,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
             )
         if hasattr(self, 'user_group_name'):
             await self.channel_layer.group_discard(self.user_group_name, self.channel_name)
+        logger.info(f"disconnected {close_code=}")
 
     async def _send_error(self, message: str):
         await self.send(text_data=json.dumps({'type': 'error', 'message': message}))
@@ -99,7 +104,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
             "viewer_reaction": self.add_viewer_reaction,
         }
 
-    @websocket_catch_service_exception
+    @websocket_catch_service_exception(default_message="Could not process the message")
     async def receive(self, text_data=None, bytes_data=None):
         if not text_data:
             await self._send_error("Expected text data")
@@ -112,6 +117,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
 
         event_type = payload.get('type')
         event_data = payload.get('data') or {}
+        logger.info(f"{payload=}")
         try:
             handler = self.event_mapping()[event_type]
         except KeyError:
@@ -129,6 +135,8 @@ class DebateConsumer(AsyncWebsocketConsumer):
 
     @websocket_catch_service_exception(default_message="Could not submit the message")
     async def handle_message_submit(self, content: str):
+        if  self.is_viewer:
+            self._send_error(message="You cant send message to this deabate")
         debate_id = self.debate_id
         message = await database_sync_to_async(submit_message)(
             user=self.user, debate_id=debate_id, content=content
@@ -161,14 +169,12 @@ class DebateConsumer(AsyncWebsocketConsumer):
 
     @websocket_catch_service_exception(default_message="Could not join the queue")
     async def handle_join_queue(self, event_data: dict):
-        topic_id = int(event_data.get('topic_id'))
+        topic_id = int(event_data.get('topic_id', 0))
         pro_or_con = event_data.get('pro_or_con')
-        category_id = event_data.get('category_id')
-        if not topic_id and not category_id:
-            await self._send_error("Topic ID or  Category ID is required")
-            return
-        
+        category_id = event_data.get('category_id', 0)
+
         pro_or_con = await database_sync_to_async(get_pro_or_con)(user=self.user, pro_or_con=pro_or_con)
+        logger.info(f"{self.user.id=}, {pro_or_con=}")
         outcome = await database_sync_to_async(join_queue_outcome)(
             user=self.user, topic_id=topic_id, pro_or_con=pro_or_con, category_id=category_id
         )
@@ -277,6 +283,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
             user=self.user, debate_id=debate_id
         )
         self.viewer_id = debate_viewer.id
+        self.is_viewer = True
         await self.send(
             text_data=json.dumps(
                 {"type": "viewer.joined", "data": DebateViewerSerializer(debate_viewer).data}
@@ -284,7 +291,11 @@ class DebateConsumer(AsyncWebsocketConsumer):
         )
 
     async def viewer_left(self, data: Dict):
+        if not self.is_viewer:
+            return 
+
         status = data.get("status", DebateViewerStatus.LEFT)
+
         await self.channel_layer.group_discard(self.debate_group_name, self.channel_name)
         await database_sync_to_async(update_debate_viewer_status)(id=self.viewer_id, status=status)
         await self.channel_layer.group_send(
@@ -297,6 +308,9 @@ class DebateConsumer(AsyncWebsocketConsumer):
         )
 
     async def add_viewer_reaction(self, data: Dict):
+        if not self.is_viewer:
+            return
+
         reaction = data.get("reaction")
         message_id = data.get("message_id")
         await database_sync_to_async(check_and_add_user_reaction)(

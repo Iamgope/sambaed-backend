@@ -100,9 +100,9 @@ def get_topic_by_id_or_category_id(
 ) -> Optional[Topic]:
     if topic_id:
         return get_topic_by_id(topic_id=topic_id)
-    if category_id is None:
-        return None
-    return Topic.objects.filter(category_id=category_id, is_active=True).order_by("?").first()
+    if category_id:
+        return Topic.objects.filter(category_id=category_id, is_active=True).order_by("?").first()
+    return Topic.objects.filter(is_active=True).order_by("?").first()
 
 
 def create_match_queue_entry(

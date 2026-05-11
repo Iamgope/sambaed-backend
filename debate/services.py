@@ -1,4 +1,3 @@
-from collections import defaultdict
 from functools import partial
 from typing import Dict
 import random
@@ -38,6 +37,7 @@ ROUND_SEQUENCE = [
 # ── Queue / Matchmaking ──────────────────────────────────────────────────────
 
 
+@transaction.atomic
 def join_queue(
     *,
     user: User,
@@ -301,12 +301,17 @@ def get_pro_or_con(*, user: User, pro_or_con: Optional[str]) -> ProOrCon:
 
 def group_topics_by_category(*, topics: list[Topic]) -> Dict:
     data = TopicSerializer(topics, many=True).data
-    result = defaultdict(defaultdict(list))
+    result: Dict = {}
     for topic_data in data:
-        category_name = topic_data['category']["name"]
+        category = topic_data["category"]
+        category_name = category["name"]
+        if category_name not in result:
+            result[category_name] = {
+                "description": category["description"],
+                "background_image": category["background_image"],
+                "topics": [],
+            }
         result[category_name]["topics"].append(topic_data)
-        result[category_name]["description"] = topic_data['category']["description"]
-        result[category_name]["background_image"] = topic_data["category"]["background_image"]
     return result
 
 
