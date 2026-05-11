@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from django.utils import timezone
-from typing import Optional
+from typing import List, Optional
 
 from django.db.models import Q, QuerySet
 from django.contrib.auth.models import User
 
-from debate.models import Debate, DebateViewer, Judgement, MatchQueue, Message, Round, Topic, ViewerReaction
+from debate.models import Category, Debate, DebateViewer, Judgement, MatchQueue, Message, Round, Topic, ViewerReaction
 from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus, ProOrCon, RoundType
 
 
@@ -298,3 +298,7 @@ def add_viewer_reaction(*, user_id: int, message_id: int, reaction: str) -> View
         message_id=message_id,
         reaction=reaction
     )
+
+
+def get_active_categories() -> List[Category]:
+    return Category.objects.filter(is_active=True)

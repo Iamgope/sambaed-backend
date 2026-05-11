@@ -18,3 +18,4 @@ class FeedbackType(models.TextChoices):
 class ApplicationConfigName(Enum):
     TEST = "TEST"
     DEBATE_JUDGE = "DEBATE_JUDGE"
+    DEBATE_GROUND_RULES = "DEBATE_GROUND_RULES"

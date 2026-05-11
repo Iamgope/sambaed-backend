@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Dict
+from typing import Dict, List
 import random
 import logging
 from typing import Optional
@@ -12,9 +12,9 @@ from django.conf import settings
 from base.events import send_queue_matched_event
 from base.exception import ServiceException
 from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus, ProOrCon, RoundType
-from debate.models import Debate, DebateViewer, Judgement, Message, MatchQueue, Round, Topic
+from debate.models import Category, Debate, DebateViewer, Judgement, Message, MatchQueue, Round, Topic
 from debate import selectors
-from debate.serializers import DebateListSerializer, TopicSerializer
+from debate.serializers import CategorySerializer, DebateListSerializer, TopicSerializer
 from debate.tasks import start_judgement_of_debate_and_share_result
 from users.constants import ApplicationConfigName
 from users.selectors import get_application_config_by_name
@@ -505,3 +505,16 @@ def match_with_bot(*, queue_id: int) -> None:
     transaction.on_commit(lambda:bot_respond.apply_async(args=[debate.id], countdown=random.randint(8, 15)))
     # bot_respond.apply_async(args=[debate.id], countdown=random.randint(8, 15))
 
+
+
+def get_debate_ground_rules():
+    config = get_application_config_by_name(name=ApplicationConfigName.DEBATE_GROUND_RULES.value)
+    properties = config.properties if config else {}
+    rules = properties.get("rules", [])
+    return rules
+
+
+def serialize_category_and_debate_rules(*, categories: List[Category]):
+    categories_data = CategorySerializer(categories, many=True).data
+    debate_rules = get_debate_ground_rules()
+    return categories_data, debate_rules

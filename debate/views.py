@@ -1,3 +1,4 @@
+from kombu.common import logger
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -8,13 +9,14 @@ from base.response import status_200, status_400
 from debate.constants import DebateStatus
 from debate.models import Judgement
 from debate.selectors import (
+    get_active_categories,
     get_active_topics,
     get_debates_by_status,
     get_messages_for_debate_and_user,
     get_user_debates,
     get_debate,
 )
-from debate.services import  dispute_judgement, group_topics_by_category
+from debate.services import  dispute_judgement, group_topics_by_category, serialize_category_and_debate_rules
 from debate.serializers import (
     DebateListSerializer,
     DebateDetailSerializer,
@@ -119,3 +121,14 @@ class DisputeView(APIView):
     def post(self, request, debate_id):
         judgement = dispute_judgement(user=request.user, debate_id=debate_id)
         return status_200(message="Dispute processed", data=JudgementSerializer(judgement).data)
+
+
+class CategoryAndGroundRule(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @handle_exception
+    def get(self, request):
+        categories = get_active_categories()
+        categories, rules = serialize_category_and_debate_rules(categories=categories)
+        return status_200(message="Fetch Categories", data={"categories":categories, "rules": rules})

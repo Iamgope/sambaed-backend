@@ -2,7 +2,7 @@ from django.contrib import admin
 from unfold.admin import ModelAdmin
 
 # Register your models here.
-from users.models import UserDevice, UserProfile
+from users.models import UserDevice, UserProfile, ApplicationConfig
 
 
 @admin.register(UserDevice)
@@ -18,3 +18,10 @@ class UserProfileAdmin(ModelAdmin):
     list_filter = ('elo_rating', 'total_debates', 'wins', 'losses')
     search_fields = ('user__username',)
     readonly_fields = ('user',)
+
+
+@admin.register(ApplicationConfig)
+class ApplicationConfigAdmin(ModelAdmin):
+    list_display = ("name", "properties", "is_active")
+    search_fields = ("name",)
+    list_filter = ("is_active",)

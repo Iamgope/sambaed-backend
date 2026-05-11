@@ -1,6 +1,7 @@
 from django.urls import path
 
 from debate.views import (
+    CategoryAndGroundRule,
     OngoingDebateListView,
     TopicListView,
     DebateListView,
@@ -20,4 +21,5 @@ urlpatterns = [
     path('<int:debate_id>/dispute/', DisputeView.as_view(), name='dispute'),
     path('ongoingDebates/', OngoingDebateListView.as_view(), name='ongoing-debate-list'),
     path('myDebates/', MyDebatesListView.as_view(), name='my-debate-list'),
+    path("getCategoryAndRules/", CategoryAndGroundRule.as_view(), name="category-and-rules"),
 ]
