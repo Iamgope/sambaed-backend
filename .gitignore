@@ -210,3 +210,4 @@ staticfiles/
 postgres-data/
 rabbitmq/
 CLAUDE.md
+service-account-key.json
