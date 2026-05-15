@@ -45,12 +45,14 @@ def join_queue(
     category_id: Optional[int],
     pro_or_con: ProOrCon,
 ) -> MatchQueue:
-    topic = selectors.get_topic_by_id_or_category_id(topic_id=topic_id, category_id=category_id)
-    if not topic:
-        raise ServiceException(message="Topic not found or inactive")
-
     if selectors.get_active_queue_entry(user=user):
         raise ServiceException(message="You are already in the queue")
+
+    topic = selectors.get_topic_by_id_or_category_id(
+        topic_id=topic_id, category_id=category_id, pro_or_con=pro_or_con
+    )
+    if not topic:
+        raise ServiceException(message="Topic not found or inactive")
 
     opponent_entry = selectors.get_pending_match_for_topic(
         topic_id=topic.id, exclude_user=user, pro_or_con=pro_or_con
@@ -63,9 +65,11 @@ def join_queue(
     entry = selectors.create_match_queue_entry(
         user=user, topic=topic, pro_or_con=pro_or_con, status=MatchQueueStatus.PENDING
     )
+    bot_config = get_bot_config()
+    bot_queue_wait_seconds = bot_config.get("bot_queue_wait_sec", 60)
     # Schedule bot fallback — if no human joins within the wait window, match with bot
     from debate.tasks import assign_bot_if_no_match
-    assign_bot_if_no_match.apply_async(args=[entry.id], countdown=BOT_QUEUE_WAIT_SECONDS)
+    assign_bot_if_no_match.apply_async(args=[entry.id], countdown=bot_queue_wait_seconds)
     return entry
 
 @transaction.atomic
@@ -260,8 +264,8 @@ def dispute_judgement(*, user: User, debate_id: int) -> Judgement:
 def join_queue_outcome(
     *,
     user: User,
-    topic_id: Optional[int],
     pro_or_con: ProOrCon,
+    topic_id: Optional[int],
     category_id: Optional[int],
 ) -> dict:
     entry = join_queue(
@@ -291,12 +295,18 @@ def join_queue_outcome(
     }
 
 
-def get_pro_or_con(*, user: User, pro_or_con: Optional[str]) -> ProOrCon:
+def get_pro_or_con(*, pro_or_con: Optional[str], topic_id: Optional[int], category_id: Optional[int]) -> ProOrCon:
     if pro_or_con:
         return ProOrCon(pro_or_con)
-    if random.random() < 0.5:
+
+    counts = selectors.get_pending_queue_counts_by_side(topic_id=topic_id, category_id=category_id)
+    pending_pro = counts.get(ProOrCon.PRO.value, 0)
+    pending_con = counts.get(ProOrCon.CON.value, 0)
+    if pending_pro > pending_con:
+        return ProOrCon.CON
+    if pending_con > pending_pro:
         return ProOrCon.PRO
-    return ProOrCon.CON
+    return ProOrCon.PRO if random.random() < 0.5 else ProOrCon.CON
 
 
 def group_topics_by_category(*, topics: list[Topic]) -> Dict:
@@ -527,3 +537,8 @@ def get_user_debate_and_message(*, user: User, debate_id: int):
     messages = selectors.get_messages_by_debate_id(debate_id=debate_id)
     messages_data = serialize_messages_of_debate(messages=messages)
     return messages_data
+
+
+def get_bot_config() -> Dict:
+    config = get_application_config_by_name(name=ApplicationConfigName.BOT_USER.value)
+    return config.properties if config else {}

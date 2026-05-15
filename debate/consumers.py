@@ -173,7 +173,9 @@ class DebateConsumer(AsyncWebsocketConsumer):
         pro_or_con = event_data.get('pro_or_con')
         category_id = event_data.get('category_id', 0)
 
-        pro_or_con = await database_sync_to_async(get_pro_or_con)(user=self.user, pro_or_con=pro_or_con)
+        pro_or_con = await database_sync_to_async(get_pro_or_con)(
+            pro_or_con=pro_or_con, topic_id=topic_id, category_id=category_id
+        )
         logger.info(f"{self.user.id=}, {pro_or_con=}")
         outcome = await database_sync_to_async(join_queue_outcome)(
             user=self.user, topic_id=topic_id, pro_or_con=pro_or_con, category_id=category_id

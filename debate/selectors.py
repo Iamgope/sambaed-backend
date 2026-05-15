@@ -4,7 +4,7 @@ from datetime import datetime
 from django.utils import timezone
 from typing import List, Optional
 
-from django.db.models import Q, QuerySet
+from django.db.models import Count, Q, QuerySet
 from django.contrib.auth.models import User
 
 import debate
@@ -73,6 +73,21 @@ def get_active_queue_entry(*, user: User) -> MatchQueue | None:
     return MatchQueue.objects.filter(user=user, status=MatchQueueStatus.PENDING).first()
 
 
+def get_pending_queue_counts_by_side(*, topic_id: Optional[int], category_id: Optional[int]) -> dict[str, int]:
+    query_filter = Q(status=MatchQueueStatus.PENDING)
+    if topic_id:
+        query_filter &= Q(topic_id=topic_id)
+    elif category_id:
+        query_filter &= Q(topic__category_id=category_id)
+
+    rows = (
+        MatchQueue.objects.filter(query_filter)
+        .values("pro_or_con")
+        .annotate(count=Count("id"))
+    )
+    return {row["pro_or_con"]: row["count"] for row in rows}
+
+
 def get_pending_match_for_topic(
     *, topic_id: int, exclude_user: User, pro_or_con: ProOrCon
 ) -> MatchQueue | None:
@@ -102,10 +117,26 @@ def get_topic_by_id(*, topic_id: int) -> Topic | None:
 
 
 def get_topic_by_id_or_category_id(
-    *, topic_id: Optional[int], category_id: Optional[int]
+    *,
+    topic_id: Optional[int],
+    category_id: Optional[int],
+    pro_or_con: ProOrCon,
 ) -> Optional[Topic]:
     if topic_id:
         return get_topic_by_id(topic_id=topic_id)
+
+    opposite_side = ProOrCon.CON if pro_or_con == ProOrCon.PRO else ProOrCon.PRO
+    candidates = Topic.objects.filter(
+        is_active=True,
+        matchqueue__status=MatchQueueStatus.PENDING,
+        matchqueue__pro_or_con=opposite_side,
+    )
+    if category_id:
+        candidates = candidates.filter(category_id=category_id)
+    topic = candidates.order_by("matchqueue__joined_at").first()
+    if topic:
+        return topic
+
     if category_id:
         return Topic.objects.filter(category_id=category_id, is_active=True).order_by("?").first()
     return Topic.objects.filter(is_active=True).order_by("?").first()
