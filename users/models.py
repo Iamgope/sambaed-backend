@@ -9,6 +9,7 @@ class UserProfile(models.Model):
     elo_rating = models.IntegerField(default=1200)
     total_debates = models.IntegerField(default=0)
     wins = models.IntegerField(default=0)
+    bio = models.TextField()
     losses = models.IntegerField(default=0)
     
     # optional for later
