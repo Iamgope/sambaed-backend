@@ -11,7 +11,7 @@ class UserProfile(models.Model):
     wins = models.IntegerField(default=0)
     bio = models.TextField()
     losses = models.IntegerField(default=0)
-    
+    streak = models.IntegerField(default=0)
     # optional for later
     is_bot = models.BooleanField(default=False)
 

@@ -1,3 +1,4 @@
+import logging
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -7,8 +8,10 @@ from base.response import status_200, status_400
 
 from users.serializers import UserDeviceSerializer, UserFeedbackSerializer, UserProfileSerializer
 from users.selectors import get_user_feedbacks, get_user_profile
-from users.services import create_feedback, register_device
+from users.services import create_feedback, register_device, update_user_profile
 
+
+logger = logging.getLogger(__name__)
 
 # Create your views here.
 class GetUserProfileView(APIView):
@@ -18,8 +21,17 @@ class GetUserProfileView(APIView):
     @handle_exception
     def get(self, request):
         user = request.user
+        logger.info(f"{user.id=}")
         user_profile = get_user_profile(user_id=user.id)
         return status_200(message="User profile fetched", data={"user": UserProfileSerializer(user_profile).data})
+    
+    @handle_exception
+    def post(self, request):
+        username = request.data.get("username")
+        name = request.data.get("name")
+        bio = request.data.get("bio")
+        update_user_profile(name=name, username=username, bio=bio, user_id=request.user.id)
+        return status_200(message="Profile updated successfully")
 
 
 class FeedbackView(APIView):

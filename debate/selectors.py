@@ -29,7 +29,7 @@ def get_debate(*, debate_id: int) -> Debate:
 def get_user_debates(*, user: User) -> QuerySet[Debate]:
     query_filter = (Q(user_pro=user) | Q(user_con=user))
     return (
-        Debate.objects.filter(query_filter)
+        Debate.objects.filter(query_filter, status=DebateStatus.COMPLETED)
         .select_related("topic", "user_pro", "user_con", "winner")
         .order_by("-started_at")
     )
