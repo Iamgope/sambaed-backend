@@ -5,7 +5,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from base.decorators import handle_exception
 from base.response import status_200
 
-from news.serializers import TopicNewsSerializer
+from news.selectors import get_latest_perspectives
+from news.serializers import PerspectiveSerializer, TopicNewsSerializer
 from news.services import fetch_world_events, get_topic_news_data_by_topic_id
 
 
@@ -31,4 +32,18 @@ class EventListView(APIView):
         return status_200(
             message="Events fetched",
             data={"events": events, "count": len(events)},
+        )
+
+
+class PerspectiveListView(APIView):
+    @handle_exception
+    def get(self, request):
+        status = request.query_params.get("status")
+        perspectives = get_latest_perspectives(status=status)
+        return status_200(
+            message="Perspectives fetched",
+            data={
+                "perspectives": PerspectiveSerializer(perspectives, many=True).data,
+                "count": perspectives.count(),
+            },
         )

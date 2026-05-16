@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import xml.etree.ElementTree as ET
@@ -10,7 +11,7 @@ import requests
 from django.conf import settings
 
 from base.exception import ServiceException
-from news.models import TopicNews
+from news.models import Perspective, TopicNews
 from news.selectors import get_topic_news_by_topic_id
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ def _fetch_reddit_cmv(limit: int, time_filter: str) -> List[Dict]:
             ).date().isoformat(),
             "score": int(s.score),
             "source": "reddit_cmv",
+            "has_context": bool(body and len(body) > 200),
         })
     return events
 
@@ -106,6 +108,7 @@ def _fetch_gdelt(limit: int, time_filter: str) -> List[Dict]:
             "date": iso_date,
             "score": 0,
             "source": "gdelt",
+            "has_context": False,
         })
     return events
 
@@ -141,6 +144,7 @@ def _fetch_guardian(limit: int, time_filter: str) -> List[Dict]:
             "date": (art.get("webPublicationDate") or "")[:10],
             "score": 0,
             "source": "guardian",
+            "has_context": bool(body and len(body) > 200),
         })
     return events
 
@@ -173,6 +177,7 @@ def _fetch_google_news_in(limit: int, time_filter: str) -> List[Dict]:
             "date": d,
             "score": 0,
             "source": "google_news_in",
+            "has_context": False,
         })
     return events
 
@@ -210,5 +215,159 @@ def fetch_world_events(*, limit: int = 50, time_filter: str = "week") -> List[Di
             try:
                 results.extend(fut.result())
             except Exception as e:
-                logger.warning("Source %s failed: %s", name, e, exc_info=True)
+                logger.warning("Source %s skipped: %s", name, e)
     return results
+
+
+# --- Perspective generation ---------------------------------------------------
+
+PERSPECTIVE_MODEL = "claude-sonnet-4-6"
+PERSPECTIVE_MAX_TOKENS = 700
+PERSPECTIVE_TEMPERATURE = 0.3
+
+PERSPECTIVE_SYSTEM_PROMPT = """You brief a reader on why thoughtful people disagree about an event, so they understand the real shape of the disagreement before forming their own view. You are NOT writing arguments to be judged. You are NOT summarizing news. You orient.
+Return STRICT JSON only, first char {, last char }, no markdown. Schema:
+{"debatable": true|false,
+ "drop_reason": "<one sentence; empty if debatable. Drop: pure events with no disagreement; settled-factual questions; topics where everyone has a locked tribal answer and no real reasoning happens>",
+ "question": "<one resolved answerable position, 'X should Y', not a theme>",
+ "context_2line": "<EXACTLY two sentences, plain factual, zero loaded words, must be side-neutral>",
+ "view_1": {"label":"<2-4 words>","view":"<2-3 sentences, the STRONGEST version a real holder of this view would endorse verbatim, not a critic's caricature>"},
+ "view_2": {"label":"<2-4 words>","view":"<2-3 sentences, SAME strength and length as view_1>"}}
+Non-negotiable: each view must pass the steelman test — its real holders would say 'yes, exactly'. If one view is sharper than the other you have failed; asymmetry must live in the reader's judgement, not your writing. Invent no facts beyond the context given. Output ONLY the JSON."""
+
+PERSPECTIVE_USER_TEMPLATE = "EVENT: {event}\n\nCONTEXT: {context}"
+
+_JSON_FENCE_OPEN = re.compile(r"^```(?:json)?\s*", re.IGNORECASE)
+_JSON_FENCE_CLOSE = re.compile(r"\s*```\s*$")
+
+
+def _strip_json_fences(raw: str) -> str:
+    raw = raw.strip()
+    raw = _JSON_FENCE_OPEN.sub("", raw)
+    raw = _JSON_FENCE_CLOSE.sub("", raw)
+    return raw.strip()
+
+
+def _normalize_title(title: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (title or "").lower())
+
+
+def generate_perspective(*, event: Dict) -> Dict:
+    """Call Anthropic to produce a steelmanned briefing for a single event.
+
+    Returns the parsed JSON dict, or {"_parse_error": True, "_raw": ...} on
+    JSON failure. Never raises for the model's output shape.
+    """
+    if not settings.ANTHROPIC_API_KEY:
+        raise ServiceException("ANTHROPIC_API_KEY not configured")
+
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    response = client.messages.create(
+        model=PERSPECTIVE_MODEL,
+        max_tokens=PERSPECTIVE_MAX_TOKENS,
+        temperature=PERSPECTIVE_TEMPERATURE,
+        system=[{
+            "type": "text",
+            "text": PERSPECTIVE_SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"},
+        }],
+        messages=[{
+            "role": "user",
+            "content": PERSPECTIVE_USER_TEMPLATE.format(
+                event=event.get("event", ""),
+                context=event.get("context", ""),
+            ),
+        }],
+    )
+
+    raw = response.content[0].text if response.content else ""
+    cleaned = _strip_json_fences(raw)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        return {"_parse_error": True, "_raw": raw[:500]}
+
+
+def generate_perspectives_for_events(*, events: List[Dict]) -> Dict:
+    """Filter, dedup, generate, and persist perspectives for a batch of events.
+
+    Save policy: every successfully-parsed LLM output is persisted. Debatable
+    rows land as `status=pending`; non-debatable rows land as `status=dropped`
+    with `drop_reason` preserved. Parse errors are counted but not stored.
+    """
+    stats = {
+        "seen": len(events),
+        "skipped_no_context": 0,
+        "deduped": 0,
+        "generated": 0,
+        "dropped_not_debatable": 0,
+        "parse_errors": 0,
+    }
+
+    with_context: List[Dict] = []
+    for e in events:
+        if e.get("has_context"):
+            with_context.append(e)
+        else:
+            stats["skipped_no_context"] += 1
+
+    survivors: List[Dict] = []
+    seen_titles = set()
+    for e in with_context:
+        key = _normalize_title(e.get("event", ""))
+        if not key or key in seen_titles:
+            stats["deduped"] += 1
+            continue
+        seen_titles.add(key)
+        survivors.append(e)
+
+    rows: List[Perspective] = []
+    for e in survivors:
+        try:
+            result = generate_perspective(event=e)
+        except Exception as exc:
+            stats["parse_errors"] += 1
+            logger.warning(
+                "generate_perspective failed for %s: %s",
+                e.get("url"), exc, exc_info=True,
+            )
+            continue
+        if result.get("_parse_error"):
+            stats["parse_errors"] += 1
+            logger.warning(
+                "Perspective parse error for %s: %s",
+                e.get("url"), result.get("_raw"),
+            )
+            continue
+
+        debatable = bool(result.get("debatable"))
+        view_1 = result.get("view_1") or {}
+        view_2 = result.get("view_2") or {}
+        rows.append(Perspective(
+            event_title=(e.get("event") or "").strip(),
+            event_context=(e.get("context") or "")[:2000],
+            event_source=(e.get("source") or "")[:64],
+            event_date=(e.get("date") or "")[:10],
+            question=(result.get("question") or "").strip(),
+            context_2line=(result.get("context_2line") or "").strip(),
+            view_1_label=(view_1.get("label") or "").strip()[:64],
+            view_1_text=(view_1.get("view") or "").strip(),
+            view_2_label=(view_2.get("label") or "").strip()[:64],
+            view_2_text=(view_2.get("view") or "").strip(),
+            debatable=debatable,
+            drop_reason=(result.get("drop_reason") or "").strip(),
+            source_event_url=e.get("url") or "",
+            status=Perspective.STATUS_PENDING if debatable
+                   else Perspective.STATUS_DROPPED,
+        ))
+        if debatable:
+            stats["generated"] += 1
+        else:
+            stats["dropped_not_debatable"] += 1
+
+    if rows:
+        Perspective.objects.bulk_create(rows)
+
+    return stats
