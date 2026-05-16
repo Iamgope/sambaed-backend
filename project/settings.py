@@ -54,6 +54,7 @@ LOCAL_INSTALLED_APPS = [
     'quiz',
     'debate',
     "users",
+    "news",
 ]
 
 INSTALLED_APPS = [

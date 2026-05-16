@@ -23,4 +23,5 @@ urlpatterns = [
     path("authentication/", include("authentication.urls")),
     path("debate/", include("debate.urls")),
     path("users/", include("users.urls")),
+    path("news/", include("news.urls")),
 ]
