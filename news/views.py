@@ -6,7 +6,7 @@ from base.decorators import handle_exception
 from base.response import status_200
 
 from news.serializers import TopicNewsSerializer
-from news.services import get_topic_news_data_by_topic_id
+from news.services import fetch_world_events, get_topic_news_data_by_topic_id
 
 
 class TopicNewsListView(APIView):
@@ -19,4 +19,16 @@ class TopicNewsListView(APIView):
         return status_200(
             message="News fetched",
             data={"news": TopicNewsSerializer(news, many=True).data},
+        )
+
+
+class EventListView(APIView):
+    @handle_exception
+    def get(self, request):
+        limit = int(request.query_params.get("limit", 50))
+        time_filter = request.query_params.get("time", "week")
+        events = fetch_world_events(limit=limit, time_filter=time_filter)
+        return status_200(
+            message="Events fetched",
+            data={"events": events, "count": len(events)},
         )
