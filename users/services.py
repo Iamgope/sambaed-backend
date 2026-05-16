@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 
-from users.models import UserDevice, UserFeedback
+from users.models import UserDevice, UserFeedback, UserProfile
 from users.selectors import create_user_feedback
 
 
@@ -24,3 +24,9 @@ def register_device(*, user: User, device_id: str, device_type: str, device_toke
         },
     )
     return device
+
+
+def update_user_profile(*, user_id: int, username: str, bio: str, name: str):
+    first, last = name.split(" ")
+    User.objects.filter(id=user_id).update(username=username, first_name=first, last_name=last)
+    UserProfile.objects.filter(user_id=user_id).update(bio=bio)
