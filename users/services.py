@@ -26,7 +26,11 @@ def register_device(*, user: User, device_id: str, device_type: str, device_toke
     return device
 
 
-def update_user_profile(*, user_id: int, username: str, bio: str, name: str):
+def update_user_profile(*, user_id: int, username: str, bio: str, name: str, profile_pic=None):
     first, _, last = name.strip().partition(" ")
     User.objects.filter(id=user_id).update(username=username, first_name=first, last_name=last)
-    UserProfile.objects.filter(user_id=user_id).update(bio=bio)
+    profile = UserProfile.objects.get(user_id=user_id)
+    profile.bio = bio
+    if profile_pic is not None:
+        profile.profile_pic = profile_pic
+    profile.save(update_fields=["profile_pic", "bio"])
