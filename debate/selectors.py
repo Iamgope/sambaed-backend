@@ -250,9 +250,28 @@ def user_has_message_in_round(*, round_obj: Round, user: User) -> bool:
 # ── Judgements (write) ────────────────────────────────────────────────
 
 def apply_judgement_outcome(*, debate: Debate, data: dict) -> Judgement:
+    from users.selectors import update_user_profile_after_debate
 
     Judgement.objects.filter(debate=debate).delete()
     winner_user = debate.user_pro if data["winner"] == "pro" else debate.user_con
+    loser_user = debate.user_con if data["winner"] == "pro" else debate.user_pro
+
+    overall_pro = (
+        data["pro"]["argument_score"]
+        + data["pro"]["rebuttal_score"]
+        + data["pro"]["clarity_score"]
+        + data["pro"]["persuasion_score"]
+    ) / 4
+    overall_con = (
+        data["con"]["argument_score"]
+        + data["con"]["rebuttal_score"]
+        + data["con"]["clarity_score"]
+        + data["con"]["persuasion_score"]
+    ) / 4
+
+    winner_overall = overall_pro if data["winner"] == "pro" else overall_con
+    loser_overall = overall_con if data["winner"] == "pro" else overall_pro
+
     judgement = Judgement.objects.create(
         debate=debate,
         winner=winner_user,
@@ -264,6 +283,8 @@ def apply_judgement_outcome(*, debate: Debate, data: dict) -> Judgement:
         rebuttal_score_con=data["con"]["rebuttal_score"],
         clarity_score_con=data["con"]["clarity_score"],
         persuasion_score_con=data["con"]["persuasion_score"],
+        overall_score_pro=overall_pro,
+        overall_score_con=overall_con,
         reasoning=data["reasoning"],
         strongest_moment=data["strongest_moment"],
         coaching_tip_pro=data["coaching_tip_pro"],
@@ -273,6 +294,14 @@ def apply_judgement_outcome(*, debate: Debate, data: dict) -> Judgement:
     debate.winner = winner_user
     debate.completed_at = timezone.now()
     debate.save(update_fields=["status", "winner", "completed_at"])
+
+    update_user_profile_after_debate(
+        winner_id=winner_user.id,
+        loser_id=loser_user.id,
+        winner_elo_delta=round(winner_overall),
+        loser_elo_delta=round(loser_overall),
+    )
+
     return judgement
 
 

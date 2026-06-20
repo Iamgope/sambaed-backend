@@ -31,6 +31,10 @@ DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
 ALLOWED_HOSTS = list(os.getenv("ALLOWED_HOSTS","localhost,127.0.0.1").split(","))
 
+CSRF_TRUSTED_ORIGINS = [
+    f"https://{host}" for host in ALLOWED_HOSTS if host not in ("localhost", "127.0.0.1")
+]
+
 
 # Application definition
 DEFAULT_INSTALLED_APPS = [
