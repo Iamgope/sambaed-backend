@@ -5,7 +5,6 @@ from celery import shared_task
 from channels.layers import get_channel_layer
 
 from debate.serializers import JudgementSerializer, MessageSerializer, RoundSerializer
-from users.selectors import get_user_by_id
 
 
 @shared_task
@@ -21,11 +20,12 @@ def send_advance_round_event(group_name: str, data: dict) -> None:
 
 
 @shared_task
-def start_judgement_of_debate_and_share_result(debate_id: int, user_id: int, group_name: str):
-    from debate.services import dispute_judgement
+def start_judgement_of_debate_and_share_result(debate_id: int, group_name: str):
+    from debate.services import auto_judge_debate
 
-    user = get_user_by_id(user_id=user_id)
-    judgement = dispute_judgement(user=user, debate_id=debate_id)
+    judgement = auto_judge_debate(debate_id=debate_id)
+    if not judgement:
+        return
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(
         group_name,

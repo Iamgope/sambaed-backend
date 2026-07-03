@@ -39,6 +39,7 @@ class Perspective(models.Model):
     debatable = models.BooleanField()
     drop_reason = models.TextField(blank=True)
     source_event_url = models.URLField(max_length=1024)
+    image_url = models.URLField(max_length=1024, blank=True, default="")
     status = models.CharField(
         max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING
     )

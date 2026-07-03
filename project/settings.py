@@ -13,7 +13,7 @@ from datetime import timedelta
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from project.celery_config import task_queues, task_routes
+from project.celery_config import task_queues, task_routes, task_default_exchange, task_default_exchange_type, task_default_routing_key
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -149,8 +149,16 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 CHANNEL_LAYERS = {
     'default': {
-        # In-memory layer for development. Switch to channels_redis for production.
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            # socket_timeout must exceed channels_redis brpop_timeout (5s).
+            # redis-py 8.x default of 5s causes a race condition with BZPOPMIN.
+            'hosts': [{
+                'address': os.getenv('REDIS_URL', 'redis://localhost:6379'),
+                'socket_timeout': 30,
+                'socket_connect_timeout': 5,
+            }],
+        },
     }
 }
 
@@ -164,6 +172,7 @@ CHANNEL_LAYERS = {
 # }
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+BOT_QUEUE_WAIT_SECONDS = int(os.getenv("BOT_QUEUE_WAIT_SECONDS", "8"))
 
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "")
 
@@ -204,6 +213,9 @@ UNFOLD = {
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "amqp://guest:guest@127.0.0.1:5672//")
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "rpc://")
 CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_DEFAULT_EXCHANGE = task_default_exchange
+CELERY_TASK_DEFAULT_EXCHANGE_TYPE = task_default_exchange_type
+CELERY_TASK_DEFAULT_ROUTING_KEY = task_default_routing_key
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_ACCEPT_CONTENT = ["json"]

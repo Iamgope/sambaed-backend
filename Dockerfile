@@ -13,7 +13,8 @@ RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}" \
     && rm -rf "${POETRY_CACHE_DIR}"
 
 COPY pyproject.toml poetry.lock ./
-RUN poetry install --no-ansi --no-root
+RUN poetry install --no-ansi --no-root \
+    && pip install --no-cache-dir channels-redis
 
 COPY . .
 

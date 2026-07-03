@@ -1,4 +1,14 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
   db:
     image: postgres:16-alpine
     environment:
@@ -46,20 +56,23 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: project.settings
       # SECRET_KEY: django-insecure-docker-only-change-for-production
-      DEBUG: True
-      ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,web
+      DEBUG: "True"
+      ALLOWED_HOSTS: "*"
       DB_NAME: vaad_vivaad
       DB_USER: vaad
       DB_PASSWORD: vaad
       DB_HOST: db
       DB_PORT: 5432
       CELERY_BROKER_URL: amqp://vaad:vaad@rabbitmq:5672/test
+      REDIS_URL: redis://redis:6379
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - .:/app:cached
@@ -71,17 +84,20 @@ services:
     command: celery -A project worker -l info --without-mingle --without-gossip
     environment:
       DJANGO_SETTINGS_MODULE: project.settings
-      DEBUG: True
+      DEBUG: "True"
       DB_NAME: vaad_vivaad
       DB_USER: vaad
       DB_PASSWORD: vaad
       DB_HOST: db
       DB_PORT: 5432
       CELERY_BROKER_URL: amqp://vaad:vaad@rabbitmq:5672/test
+      REDIS_URL: redis://redis:6379
     depends_on:
       db:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - .:/app:cached

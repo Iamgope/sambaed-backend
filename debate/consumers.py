@@ -7,6 +7,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
 
 from base.decorators import websocket_catch_service_exception
+from base.exception import ServiceException
 from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus
 from debate.selectors import update_debate_status, update_debate_viewer_status, update_match_queue_status
 from debate.serializers import DebateViewerSerializer, MessageSerializer, RoundSerializer
@@ -17,6 +18,7 @@ from debate.services import (
     end_turn,
     get_pro_or_con,
     submit_message,
+    submit_message_and_maybe_advance,
     leave_queue,
     schedule_bot_response_if_needed,
 )
@@ -58,10 +60,11 @@ class DebateConsumer(AsyncWebsocketConsumer):
     # ── Connection lifecycle ──────────────────────────────────────────────────
 
     async def connect(self):
-        if not self.scope.get('user'):
+        user = self.scope.get('user')
+        if not user or not user.is_authenticated:
             await self.close(code=4001)
             return
-        self.user = self.scope["user"]
+        self.user = user
         self.app_version = self.scope["app_version"]
         self.user_group_name = f"user_{self.user.id}"
         self.debate_id = None
@@ -73,6 +76,8 @@ class DebateConsumer(AsyncWebsocketConsumer):
         logger.info(f"{self.user.id=}, {self.app_version=}, {self.user_group_name=} connected successfully")
 
     async def disconnect(self, close_code):
+        if not hasattr(self, 'user'):
+            return
         await self.handle_leave_queue({})
         await self.viewer_left(data={"status": DebateViewerStatus.DISCONNECTED})
         if getattr(self, 'debate_group_name', None):
@@ -97,6 +102,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
         return {
             "message": self.handle_message,
             "end_turn": self.handle_end_turn,
+            "typing": self.handle_typing,
             "join_queue": self.handle_join_queue,
             "leave_queue": self.handle_leave_queue,
             "join_viewer": self.handle_join_viewer,
@@ -135,19 +141,30 @@ class DebateConsumer(AsyncWebsocketConsumer):
 
     @websocket_catch_service_exception(default_message="Could not submit the message")
     async def handle_message_submit(self, content: str):
-        if  self.is_viewer:
+        if self.is_viewer:
             self._send_error(message="You cant send message to this deabate")
         debate_id = self.debate_id
-        message = await database_sync_to_async(submit_message)(
-            user=self.user, debate_id=debate_id, content=content
-        )
+
+        def _submit_and_serialize():
+            msg, nxt = submit_message_and_maybe_advance(
+                user=self.user, debate_id=debate_id, content=content
+            )
+            return MessageSerializer(msg).data, (RoundSerializer(nxt).data if nxt else None)
+
+        message_data, round_data = await database_sync_to_async(_submit_and_serialize)()
         await self.channel_layer.group_send(
             self.debate_group_name,
             {
                 'type': 'message.new',
-                'message': MessageSerializer(message).data,
+                'message': message_data,
             },
         )
+        if round_data:
+            send_advance_round_event.apply_async(
+                args=[self.debate_group_name, round_data],
+                countdown=1,
+            )
+        await database_sync_to_async(schedule_bot_response_if_needed)(debate_id=debate_id)
 
     @websocket_catch_service_exception(default_message="Could not end your turn")
     async def handle_end_turn(self, event_data: dict):
@@ -155,17 +172,37 @@ class DebateConsumer(AsyncWebsocketConsumer):
             await self._send_error("No active debate")
             return
         debate_id = self.debate_id
-        next_round = await database_sync_to_async(end_turn)(
-            user=self.user, debate_id=debate_id
-        )
-        if next_round:
+
+        def _end_turn_and_serialize():
+            nxt = end_turn(user=self.user, debate_id=debate_id)
+            return RoundSerializer(nxt).data if nxt else None
+
+        round_data = await database_sync_to_async(_end_turn_and_serialize)()
+        if round_data:
             send_advance_round_event.apply_async(
-                args=[self.debate_group_name, RoundSerializer(next_round).data],
-                countdown=10,
+                args=[self.debate_group_name, round_data],
+                countdown=1,
             )
         # If this is a bot debate and it's now the bot's turn, schedule its response
         await database_sync_to_async(schedule_bot_response_if_needed)(debate_id=debate_id)
 
+
+    async def handle_typing(self, event_data: dict):
+        if not self.debate_id or not self.debate_group_name:
+            return
+        await self.channel_layer.group_send(
+            self.debate_group_name,
+            {
+                'type': 'opponent.typing',
+                'user_id': self.user.id,
+            }
+        )
+
+    async def opponent_typing(self, event):
+        """Forward typing notification to the client, skipping the sender."""
+        if event.get('user_id') == self.user.id:
+            return
+        await self.send(text_data=json.dumps({'type': 'opponent.typing'}))
 
     @websocket_catch_service_exception(default_message="Could not join the queue")
     async def handle_join_queue(self, event_data: dict):
@@ -211,9 +248,11 @@ class DebateConsumer(AsyncWebsocketConsumer):
             )
 
     async def handle_leave_queue(self, event_data: dict):
-        await database_sync_to_async(leave_queue)(
-            user=self.user
-        )
+        try:
+            await database_sync_to_async(leave_queue)(user=self.user)
+        except ServiceException:
+            # User was already matched or not in queue — nothing to leave.
+            return
         if self.debate_id:
             await self.process_and_update_status_on_leave()
             await self.channel_layer.group_send(
@@ -317,5 +356,17 @@ class DebateConsumer(AsyncWebsocketConsumer):
         message_id = data.get("message_id")
         await database_sync_to_async(check_and_add_user_reaction)(
             user=self.user, reaction=reaction, message_id=message_id
+        )
+
+    async def round_advance(self, event):
+        """Forward round.advance group message → client as round.advanced."""
+        await self.send(
+            text_data=json.dumps({'type': 'round.advanced', 'round': event.get('data', {})})
+        )
+
+    async def judgement(self, event):
+        """Forward judgement group message → client as debate.completed."""
+        await self.send(
+            text_data=json.dumps({'type': 'debate.completed', 'judgement': event.get('data', {})})
         )
 
