@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -8,6 +9,7 @@ from email.utils import parsedate_to_datetime
 from typing import Callable, Dict, List, Optional
 
 import requests
+from django.core.cache import cache
 from django.conf import settings
 
 from base.exception import ServiceException
@@ -59,6 +61,8 @@ def _fetch_reddit_cmv(limit: int, time_filter: str) -> List[Dict]:
         if body in ("[removed]", "[deleted]", ""):
             continue
         title = re.sub(r"^\s*CMV\s*[:\-]?\s*", "", s.title, flags=re.I).strip()
+        thumbnail = getattr(s, "thumbnail", "") or ""
+        image = thumbnail if thumbnail.startswith("http") else ""
         events.append({
             "event": title,
             "context": body[:2000],
@@ -69,12 +73,35 @@ def _fetch_reddit_cmv(limit: int, time_filter: str) -> List[Dict]:
             "score": int(s.score),
             "source": "reddit_cmv",
             "has_context": bool(body and len(body) > 200),
+            "image_url": image,
         })
     return events
 
 
+def _fetch_article_text(url: str) -> str:
+    """Fetch and extract article body text from a URL using trafilatura."""
+    import trafilatura
+    try:
+        downloaded = trafilatura.fetch_url(url)
+        if not downloaded:
+            return ""
+        text = trafilatura.extract(downloaded, include_comments=False, include_tables=False)
+        return (text or "").strip()
+    except Exception:
+        return ""
+
+
+GDELT_CACHE_TTL = 60 * 30  # 30 minutes
+GDELT_RETRY_DELAYS = [10, 30, 60]  # seconds between retries
+
+
 def _fetch_gdelt(limit: int, time_filter: str) -> List[Dict]:
     """GDELT DOC API, India-focused. No key required."""
+    cache_key = f"gdelt:{limit}:{time_filter}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     params = {
         "query": "sourcecountry:IN",
         "mode": "ArtList",
@@ -86,30 +113,63 @@ def _fetch_gdelt(limit: int, time_filter: str) -> List[Dict]:
     if span:
         params["timespan"] = span
 
-    r = requests.get(
-        "https://api.gdeltproject.org/api/v2/doc/doc",
-        params=params,
-        timeout=HTTP_TIMEOUT,
-    )
-    r.raise_for_status()
+    last_exc = None
+    for attempt, delay in enumerate([0] + GDELT_RETRY_DELAYS):
+        if delay:
+            time.sleep(delay)
+        try:
+            r = requests.get(
+                "https://api.gdeltproject.org/api/v2/doc/doc",
+                params=params,
+                timeout=HTTP_TIMEOUT,
+            )
+            r.raise_for_status()
+            break
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == 429:
+                last_exc = e
+                logger.warning("GDELT 429, attempt %d", attempt + 1)
+                continue
+            raise
+    else:
+        raise last_exc
     payload = r.json() if r.content else {}
-    events: List[Dict] = []
-    for art in (payload.get("articles") or [])[:limit]:
+    articles = (payload.get("articles") or [])[:limit]
+
+    # Build base events first so we can fetch article text in parallel.
+    base: List[Dict] = []
+    for art in articles:
         seendate = art.get("seendate", "") or ""
-        # seendate is YYYYMMDDTHHMMSSZ. Slice to ISO date.
         iso_date = (
             f"{seendate[:4]}-{seendate[4:6]}-{seendate[6:8]}"
             if len(seendate) >= 8 else ""
         )
-        events.append({
+        base.append({
             "event": (art.get("title") or "").strip(),
-            "context": (art.get("domain") or "").strip(),
             "url": art.get("url", ""),
             "date": iso_date,
             "score": 0,
             "source": "gdelt",
-            "has_context": False,
+            "image_url": (art.get("socialimage") or "").strip(),
         })
+
+    # Fetch article bodies in parallel with a capped thread count.
+    def _enrich(item: Dict) -> Dict:
+        text = _fetch_article_text(item["url"])
+        item["context"] = text[:2000]
+        item["has_context"] = len(text) > 200
+        return item
+
+    events: List[Dict] = []
+    with ThreadPoolExecutor(max_workers=min(len(base), 5)) as ex:
+        futures = {ex.submit(_enrich, item): item for item in base}
+        for fut in as_completed(futures):
+            try:
+                events.append(fut.result())
+            except Exception as e:
+                logger.warning("GDELT article enrich failed: %s", e)
+
+    cache.set(cache_key, events, GDELT_CACHE_TTL)
     return events
 
 
@@ -124,7 +184,7 @@ def _fetch_guardian(limit: int, time_filter: str) -> List[Dict]:
         "tag": "world/india",
         "page-size": min(limit, 50),
         "order-by": "newest",
-        "show-fields": "trailText,bodyText",
+        "show-fields": "trailText,bodyText,thumbnail",
     }
     r = requests.get(
         "https://content.guardianapis.com/search",
@@ -145,6 +205,7 @@ def _fetch_guardian(limit: int, time_filter: str) -> List[Dict]:
             "score": 0,
             "source": "guardian",
             "has_context": bool(body and len(body) > 200),
+            "image_url": (fields.get("thumbnail") or "").strip(),
         })
     return events
 
@@ -170,6 +231,10 @@ def _fetch_google_news_in(limit: int, time_filter: str) -> List[Dict]:
             d = ""
         description = (item.findtext("description") or "").strip()
         description = re.sub(r"<[^>]+>", " ", description)
+        media_url = item.find(
+            "{http://search.yahoo.com/mrss/}content"
+        )
+        image = (media_url.get("url") or "") if media_url is not None else ""
         events.append({
             "event": title,
             "context": description[:2000],
@@ -178,6 +243,7 @@ def _fetch_google_news_in(limit: int, time_filter: str) -> List[Dict]:
             "score": 0,
             "source": "google_news_in",
             "has_context": False,
+            "image_url": image,
         })
     return events
 
@@ -359,6 +425,7 @@ def generate_perspectives_for_events(*, events: List[Dict]) -> Dict:
             debatable=debatable,
             drop_reason=(result.get("drop_reason") or "").strip(),
             source_event_url=e.get("url") or "",
+            image_url=e.get("image_url") or "",
             status=Perspective.STATUS_PENDING if debatable
                    else Perspective.STATUS_DROPPED,
         ))

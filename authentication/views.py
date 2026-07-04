@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.contrib.auth.models import User
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
@@ -49,6 +51,32 @@ class GoogleLoginCallback(APIView):
             message="Login successful",
             data={
                 "is_new_user": is_created,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+            },
+        )
+
+
+class DevLoginView(APIView):
+    """Dev-only: returns JWT tokens for any username. Only works when DEBUG=True."""
+    permission_classes = [AllowAny]
+
+    @handle_exception
+    def post(self, request):
+        if not settings.DEBUG:
+            return status_400(message="Not available in production")
+        username = request.data.get("username")
+        if not username:
+            return status_400(message="username is required")
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return status_400(message=f"User '{username}' not found")
+        access_token, refresh_token = get_jwt_access_token(user=user)
+        return status_200(
+            message="Login successful",
+            data={
+                "is_new_user": False,
                 "access_token": access_token,
                 "refresh_token": refresh_token,
             },

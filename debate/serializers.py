@@ -35,10 +35,11 @@ class MessageSerializer(serializers.ModelSerializer):
 
 class RoundSerializer(serializers.ModelSerializer):
     messages = MessageSerializer(many=True, read_only=True)
+    current_speaker_id = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = Round
-        fields = ['id', 'round_type', 'order', 'started_at', 'ended_at', 'messages']
+        fields = ['id', 'round_type', 'order', 'started_at', 'ended_at', 'current_speaker_id', 'messages']
 
 
 class DebateListSerializer(serializers.ModelSerializer):

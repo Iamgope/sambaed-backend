@@ -91,10 +91,11 @@ def get_pending_queue_counts_by_side(*, topic_id: Optional[int], category_id: Op
 def get_pending_match_for_topic(
     *, topic_id: int, exclude_user: User, pro_or_con: ProOrCon
 ) -> MatchQueue | None:
+    opposite = ProOrCon.CON if pro_or_con == ProOrCon.PRO else ProOrCon.PRO
     return (
         MatchQueue.objects.select_for_update()
-        .filter(topic_id=topic_id, status=MatchQueueStatus.PENDING)
-        .exclude(user=exclude_user, pro_or_con=pro_or_con)
+        .filter(topic_id=topic_id, status=MatchQueueStatus.PENDING, pro_or_con=opposite)
+        .exclude(user=exclude_user)
         .first()
     )
 

@@ -53,7 +53,7 @@ class ClaudeJudgeClient:
     def judge(self, *, transcript: str, judge_config: Dict) -> dict:
         client = self._get_client()
         system_prompt = judge_config.get("system_prompt", _JUDGE_SYSTEM_PROMPT)
-        model = judge_client.get("model", "claude-sonnet-4-6")
+        model = judge_config.get("model", "claude-sonnet-4-6")
         response = client.messages.create(
             model=model,
             max_tokens=1024,
