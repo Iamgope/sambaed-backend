@@ -1,4 +1,3 @@
-from kombu.common import logger
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -16,7 +15,12 @@ from debate.selectors import (
     get_user_debates,
     get_debate,
 )
-from debate.services import  dispute_judgement, get_user_debate_and_message, group_topics_by_category, serialize_category_and_debate_rules
+from debate.services import  (
+    dispute_judgement,
+    get_user_debate_and_message,
+    group_topics_by_category,
+    serialize_category_and_debate_rules
+)
 from debate.serializers import (
     DebateListSerializer,
     DebateDetailSerializer,

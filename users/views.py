@@ -30,7 +30,14 @@ class GetUserProfileView(APIView):
         username = request.data.get("username")
         name = request.data.get("name")
         bio = request.data.get("bio")
-        update_user_profile(name=name, username=username, bio=bio, user_id=request.user.id)
+        profile_pic = request.FILES.get("profile_pic")
+        update_user_profile(
+            name=name,
+            username=username,
+            bio=bio,
+            user_id=request.user.id,
+            profile_pic=profile_pic,
+        )
         return status_200(message="Profile updated successfully")
 
 

@@ -97,5 +97,5 @@ def get_user_data_from_google_id_token(*, id_token: Optional[str]) -> Dict:
 
 
 def get_username_base_to_generate_usernames():
-    config = get_application_config_by_name(ApplicationConfigName.USERNAME_BASE.value)
+    config = get_application_config_by_name(name=ApplicationConfigName.USERNAME_BASE.value)
     return config.properties if config else {}
