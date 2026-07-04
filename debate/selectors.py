@@ -250,6 +250,10 @@ def user_has_message_in_round(*, round_obj: Round, user: User) -> bool:
 
 # ── Judgements (write) ────────────────────────────────────────────────
 
+def judgement_exists_for_debate(*, debate_id: int) -> bool:
+    return Judgement.objects.filter(debate_id=debate_id).exists()
+
+
 def apply_judgement_outcome(*, debate: Debate, data: dict) -> Judgement:
     from users.selectors import update_user_profile_after_debate
 

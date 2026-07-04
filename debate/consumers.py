@@ -21,6 +21,7 @@ from debate.services import (
     submit_message_and_maybe_advance,
     leave_queue,
     schedule_bot_response_if_needed,
+    schedule_debate_judgement,
 )
 from debate.tasks import send_advance_round_event
 
@@ -46,6 +47,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
     Client → Server events:
         {"type": "message", "data": {"content": "..."}}
         {"type": "join_queue", "data": {"topic_id": <int>}}
+        {"type": "debate_completed"}   # client signals its round sequence has finished
 
     Server → Client events:
         {"type": "queue.matched", "data": {"debate": {...}}}   # match found
@@ -108,6 +110,7 @@ class DebateConsumer(AsyncWebsocketConsumer):
             "join_viewer": self.handle_join_viewer,
             "viewer_left": self.viewer_left,
             "viewer_reaction": self.add_viewer_reaction,
+            "debate_completed": self.handle_debate_completed,
         }
 
     @websocket_catch_service_exception(default_message="Could not process the message")
@@ -369,4 +372,14 @@ class DebateConsumer(AsyncWebsocketConsumer):
         await self.send(
             text_data=json.dumps({'type': 'debate.completed', 'judgement': event.get('data', {})})
         )
+
+    @websocket_catch_service_exception(default_message="Could not process debate completion")
+    async def handle_debate_completed(self, event_data: dict):
+        if not self.debate_id or not self.debate_group_name:
+            await self._send_error("No active debate")
+            return
+        await database_sync_to_async(schedule_debate_judgement)(
+            debate_id=self.debate_id, group_name=self.debate_group_name
+        )
+
 

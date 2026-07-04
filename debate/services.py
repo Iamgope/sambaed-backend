@@ -328,6 +328,17 @@ def auto_judge_debate(*, debate_id: int) -> Optional[Judgement]:
         logger.error("Auto judging failed for debate %s: %s", debate.id, e, exc_info=True)
         return None
 
+def schedule_debate_judgement(*, debate_id: int, group_name: str) -> None:
+    """Called when the client signals a debate is complete; kicks off judging if it hasn't already been."""
+    debate = selectors.get_debate_by_id(debate_id=debate_id)
+    if not debate or debate.status != DebateStatus.ONGOING:
+        return
+    if selectors.judgement_exists_for_debate(debate_id=debate_id):
+        return
+    start_judgement_of_debate_and_share_result.apply_async(
+        args=[debate_id, group_name], countdown=5
+    )
+
 
 def join_queue_outcome(
     *,

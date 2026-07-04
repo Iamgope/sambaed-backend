@@ -1,8 +1,11 @@
 import json
+import re
 from typing import Dict
 
 import anthropic
 from django.conf import settings
+
+_JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
 
 _JUDGE_SYSTEM_PROMPT = """\
 You are a strict but fair debate judge. Evaluate 1v1 structured debates objectively.
@@ -73,7 +76,25 @@ class ClaudeJudgeClient:
                 }
             ],
         )
-        return json.loads(response.content[0].text.strip())
+
+        if response.stop_reason == "refusal":
+            category = getattr(response.stop_details, "category", None)
+            raise RuntimeError(
+                f"Judge model declined to evaluate this debate (stop_reason=refusal, category={category})"
+            )
+
+        text = next((block.text for block in response.content if block.type == "text"), None)
+        if not text or not text.strip():
+            raise RuntimeError(
+                f"Judge model returned no text to parse (stop_reason={response.stop_reason})"
+            )
+        cleaned = _JSON_FENCE_RE.sub("", text.strip()).strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"Judge model returned non-JSON text: {cleaned[:500]!r}"
+            ) from e
 
 
 judge_client = ClaudeJudgeClient()
