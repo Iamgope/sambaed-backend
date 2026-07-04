@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 
-from users.models import UserDevice, UserFeedback, UserProfile
-from users.selectors import create_user_feedback
+from users.models import TopicComment, UserDevice, UserFeedback, UserProfile
+from users.selectors import create_topic_comment, create_user_feedback
 
 
 def create_feedback(*, user: User, feedback_type: str, title: str, message: str) -> UserFeedback:
@@ -10,6 +10,15 @@ def create_feedback(*, user: User, feedback_type: str, title: str, message: str)
         feedback_type=feedback_type,
         title=title,
         message=message
+    )
+
+
+def add_topic_comment(*, user: User, topic_id: int, comment: str, side: str) -> TopicComment:
+    return create_topic_comment(
+        user=user,
+        topic_id=topic_id,
+        comment=comment,
+        side=side,
     )
 
 

@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+from debate.constants import ProOrCon
+from debate.models import Topic
 from users.constants import DeviceType, FeedbackType
 
 # Create your models here.
@@ -41,6 +43,20 @@ class UserFeedback(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.feedback_type}"
+
+
+class TopicComment(models.Model):
+    topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='topic_comments')
+    comment = models.TextField()
+    side = models.CharField(max_length=20, choices=ProOrCon.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.topic.title} ({self.side})"
 
 
 class ApplicationConfig(models.Model):

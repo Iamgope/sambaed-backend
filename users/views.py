@@ -6,9 +6,9 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from base.decorators import handle_exception
 from base.response import status_200, status_400
 
-from users.serializers import UserDeviceSerializer, UserFeedbackSerializer, UserProfileSerializer
+from users.serializers import TopicCommentSerializer, UserDeviceSerializer, UserFeedbackSerializer, UserProfileSerializer
 from users.selectors import get_user_feedbacks, get_user_profile
-from users.services import create_feedback, register_device, update_user_profile
+from users.services import add_topic_comment, create_feedback, register_device, update_user_profile
 
 
 logger = logging.getLogger(__name__)
@@ -67,6 +67,27 @@ class FeedbackView(APIView):
         return status_200(
             message="Feedback submitted",
             data={"feedback": UserFeedbackSerializer(feedback).data},
+        )
+
+
+class TopicCommentView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @handle_exception
+    def post(self, request):
+        serializer = TopicCommentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return status_400(message="Invalid data", data=serializer.errors)
+        comment = add_topic_comment(
+            user=request.user,
+            topic_id=serializer.validated_data["topic"].id,
+            comment=serializer.validated_data["comment"],
+            side=serializer.validated_data["side"],
+        )
+        return status_200(
+            message="Comment submitted",
+            data={"comment": TopicCommentSerializer(comment).data},
         )
 
 
