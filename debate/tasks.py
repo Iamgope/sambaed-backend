@@ -73,4 +73,4 @@ def bot_respond(debate_id: int) -> None:
         if bot_user and current_round and _is_user_turn(
             debate=debate, current_round=current_round, user=bot_user
         ):
-            bot_respond.apply_async(args=[debate_id], countdown=random.randint(10, 18))
+            bot_respond.apply_async(args=[debate_id], countdown=random.randint(10, 20))

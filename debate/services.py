@@ -577,11 +577,11 @@ def schedule_bot_response_if_needed(*, debate_id: int) -> None:
     if current_round.round_type == RoundType.REBUTTAL:
         # Only schedule when it's genuinely the bot's turn (current_speaker was just toggled to bot)
         if _is_user_turn(debate=debate, current_round=current_round, user=bot_user):
-            bot_respond.apply_async(args=[debate_id], countdown=random.randint(5, 12))
+            bot_respond.apply_async(args=[debate_id], countdown=random.randint(10, 20))
     elif current_round.round_type == RoundType.OPENING:
         # OPENING is simultaneous: schedule bot if it hasn't sent its opener yet.
         if not selectors.user_has_message_in_round(round_obj=current_round, user=bot_user):
-            bot_respond.apply_async(args=[debate_id], countdown=random.randint(3, 7))
+            bot_respond.apply_async(args=[debate_id], countdown=random.randint(10, 20))
 
 
 @transaction.atomic
@@ -637,7 +637,7 @@ def match_with_bot(*, queue_id: int) -> None:
     transaction.on_commit(partial(send_queue_matched_event, entry, debate))
     # Bot sends its OPENING argument first so the user has something to respond to immediately
     from debate.tasks import bot_respond
-    transaction.on_commit(lambda:bot_respond.apply_async(args=[debate.id], countdown=random.randint(3, 7)))
+    transaction.on_commit(lambda:bot_respond.apply_async(args=[debate.id], countdown=random.randint(10, 20)))
 
 
 
