@@ -2,7 +2,13 @@ from typing import List
 
 from django.contrib.auth.models import User
 from django.db import models
-from users.models import ApplicationConfig, TopicComment, UserDevice, UserFeedback, UserProfile
+from users.models import (
+    ApplicationConfig,
+    TopicComment,
+    UserDevice,
+    UserFeedback,
+    UserProfile,
+)
 
 
 def get_user_profile(*, user_id: int) -> UserProfile:
@@ -20,7 +26,10 @@ def update_user_device_status(*, pk_ids: List[int], is_active: bool) -> None:
 def get_user_feedbacks(*, user_id: int) -> List[UserFeedback]:
     return list(UserFeedback.objects.filter(user_id=user_id))
 
-def create_user_feedback(*, user: User, feedback_type: str, title: str, message: str) -> UserFeedback:
+
+def create_user_feedback(
+    *, user: User, feedback_type: str, title: str, message: str
+) -> UserFeedback:
     return UserFeedback.objects.create(
         user=user,
         feedback_type=feedback_type,
@@ -29,7 +38,9 @@ def create_user_feedback(*, user: User, feedback_type: str, title: str, message:
     )
 
 
-def create_topic_comment(*, user: User, topic_id: int, comment: str, side: str) -> TopicComment:
+def create_topic_comment(
+    *, user: User, topic_id: int, comment: str, side: str
+) -> TopicComment:
     return TopicComment.objects.create(
         user=user,
         topic_id=topic_id,

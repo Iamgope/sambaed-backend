@@ -56,7 +56,10 @@ def create_user_by_google_data(*, data: Dict) -> Tuple[User, bool]:
             raise ServiceException("User is blocked or deleted")
         return existing_user, False
 
-    user_data = {"first_name": data.pop("given_name", None), "last_name": data.pop("family_name", None)}
+    user_data = {
+        "first_name": data.pop("given_name", None),
+        "last_name": data.pop("family_name", None),
+    }
     username = _generate_unique_username(fallback_email=email)
     user = create_user(email=email, username=username, extra_data=user_data)
     create_user_profile(user=user)
@@ -78,11 +81,11 @@ def refresh_access_token(*, refresh_token: str) -> str:
 
 def get_user_data_from_google_code(*, code: Optional[str]) -> Dict:
     if not code:
-        raise ServiceException('No code provided.')
+        raise ServiceException("No code provided.")
 
     access_token = google_oauth.google_get_access_token(code=code)
     if not access_token:
-        raise ServiceException('Failed to obtain access token from Google.')
+        raise ServiceException("Failed to obtain access token from Google.")
 
     user_data = google_oauth.google_get_user_info(access_token=access_token)
 
@@ -91,11 +94,13 @@ def get_user_data_from_google_code(*, code: Optional[str]) -> Dict:
 
 def get_user_data_from_google_id_token(*, id_token: Optional[str]) -> Dict:
     if not id_token:
-        raise ServiceException('No id_token provided.')
+        raise ServiceException("No id_token provided.")
 
     return google_oauth.google_get_user_info_from_id_token(id_token=id_token)
 
 
 def get_username_base_to_generate_usernames():
-    config = get_application_config_by_name(name=ApplicationConfigName.USERNAME_BASE.value)
+    config = get_application_config_by_name(
+        name=ApplicationConfigName.USERNAME_BASE.value
+    )
     return config.properties if config else {}

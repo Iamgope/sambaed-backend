@@ -16,7 +16,6 @@ from base.response import status_200, status_400
 
 
 class GoogleLogin(APIView):
-
     def get(self, request, *args, **kwargs):
         login_url = generate_google_login_url()
         print(f"{login_url=}")
@@ -59,6 +58,7 @@ class GoogleLoginCallback(APIView):
 
 class DevLoginView(APIView):
     """Dev-only: returns JWT tokens for any username. Only works when DEBUG=True."""
+
     permission_classes = [AllowAny]
 
     @handle_exception
@@ -84,11 +84,12 @@ class DevLoginView(APIView):
 
 
 class TokenRefreshView(APIView):
-
     @handle_exception
     def post(self, request):
         refresh_token = request.data.get("refresh_token")
         if not refresh_token:
             return status_400(message="refresh_token is required")
         access_token = refresh_access_token(refresh_token=refresh_token)
-        return status_200(message="Token refreshed", data={"access_token": access_token})
+        return status_200(
+            message="Token refreshed", data={"access_token": access_token}
+        )

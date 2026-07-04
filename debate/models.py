@@ -14,7 +14,9 @@ from debate.constants import (
 class Category(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    background_image = models.ImageField(upload_to='category_backgrounds/', null=True, blank=True)
+    background_image = models.ImageField(
+        upload_to="category_backgrounds/", null=True, blank=True
+    )
     icon = models.ImageField(upload_to="category_icon/", null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -29,7 +31,9 @@ class Topic(models.Model):
     description = models.TextField(blank=True)
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     priority = models.IntegerField(default=0)
-    background_image = models.ImageField(upload_to='topic_backgrounds/', null=True, blank=True)
+    background_image = models.ImageField(
+        upload_to="topic_backgrounds/", null=True, blank=True
+    )
     icon = models.ImageField(upload_to="topic_icon/", null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -41,10 +45,18 @@ class Topic(models.Model):
 
 class Debate(models.Model):
     topic = models.ForeignKey(Topic, on_delete=models.CASCADE)
-    user_pro = models.ForeignKey(User, on_delete=models.CASCADE, related_name='pro_debates')
-    user_con = models.ForeignKey(User, on_delete=models.CASCADE, related_name='con_debates')
+    user_pro = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="pro_debates"
+    )
+    user_con = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="con_debates"
+    )
     winner = models.ForeignKey(
-        User, null=True, blank=True, on_delete=models.SET_NULL, related_name='won_debates'
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="won_debates",
     )
     status = models.CharField(max_length=20, choices=DebateStatus.choices)
     started_at = models.DateTimeField(auto_now_add=True)
@@ -55,13 +67,13 @@ class Debate(models.Model):
 
 
 class Round(models.Model):
-    debate = models.ForeignKey(Debate, on_delete=models.CASCADE, related_name='rounds')
+    debate = models.ForeignKey(Debate, on_delete=models.CASCADE, related_name="rounds")
     round_type = models.CharField(max_length=20, choices=RoundType.choices)
     order = models.IntegerField()
     started_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     current_speaker = models.ForeignKey(
-        User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+'
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
     turn_started_at = models.DateTimeField(null=True, blank=True)
 
@@ -70,8 +82,10 @@ class Round(models.Model):
 
 
 class Message(models.Model):
-    debate = models.ForeignKey(Debate, on_delete=models.CASCADE, related_name='messages')
-    round = models.ForeignKey(Round, on_delete=models.CASCADE, related_name='messages')
+    debate = models.ForeignKey(
+        Debate, on_delete=models.CASCADE, related_name="messages"
+    )
+    round = models.ForeignKey(Round, on_delete=models.CASCADE, related_name="messages")
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     content = models.TextField(max_length=400)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -82,7 +96,9 @@ class Message(models.Model):
 
 class Judgement(models.Model):
     debate = models.OneToOneField(Debate, on_delete=models.CASCADE)
-    winner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='judged_wins')
+    winner = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="judged_wins"
+    )
 
     argument_score_pro = models.FloatField()
     rebuttal_score_pro = models.FloatField()
@@ -123,7 +139,7 @@ class MatchQueue(models.Model):
 
 
 class DebateViewer(models.Model):
-    debate = models.ForeignKey(Debate, on_delete=models.CASCADE, related_name='viewers')
+    debate = models.ForeignKey(Debate, on_delete=models.CASCADE, related_name="viewers")
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     joined_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=DebateViewerStatus.choices)
@@ -145,7 +161,6 @@ class ViewerReaction(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["user", "message"],
-                name="unique_user_message_reaction"
+                fields=["user", "message"], name="unique_user_message_reaction"
             )
         ]

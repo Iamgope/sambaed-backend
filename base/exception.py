@@ -26,7 +26,9 @@ class ServiceException(Exception):
         return self._error_message
 
     def __init__(self, *args, **kwargs):
-        logger.info(f"[ServiceException][__init__] :: args - {args} :: kwargs - {kwargs}")
+        logger.info(
+            f"[ServiceException][__init__] :: args - {args} :: kwargs - {kwargs}"
+        )
         self._type = kwargs.get("type", ExceptionType.WARNING)
         self._error_code = kwargs.get("error_code", 400)
         self._error_message = kwargs.get("error_message", None)

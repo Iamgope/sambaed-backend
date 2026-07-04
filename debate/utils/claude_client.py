@@ -83,7 +83,9 @@ class ClaudeJudgeClient:
                 f"Judge model declined to evaluate this debate (stop_reason=refusal, category={category})"
             )
 
-        text = next((block.text for block in response.content if block.type == "text"), None)
+        text = next(
+            (block.text for block in response.content if block.type == "text"), None
+        )
         if not text or not text.strip():
             raise RuntimeError(
                 f"Judge model returned no text to parse (stop_reason={response.stop_reason})"

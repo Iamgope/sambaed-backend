@@ -9,20 +9,21 @@ from users.serializers import UserSerializer
 class UserMinimalSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username']
+        fields = ["id", "username"]
 
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', "background_image"]
+        fields = ["id", "name", "description", "background_image"]
 
 
 class TopicSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
+
     class Meta:
         model = Topic
-        fields = ['id', 'title', 'description', 'category', "background_image"]
+        fields = ["id", "title", "description", "category", "background_image"]
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -30,7 +31,7 @@ class MessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Message
-        fields = ['id', 'user', 'content', 'created_at', 'round_id']
+        fields = ["id", "user", "content", "created_at", "round_id"]
 
 
 class RoundSerializer(serializers.ModelSerializer):
@@ -39,7 +40,15 @@ class RoundSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Round
-        fields = ['id', 'round_type', 'order', 'started_at', 'ended_at', 'current_speaker_id', 'messages']
+        fields = [
+            "id",
+            "round_type",
+            "order",
+            "started_at",
+            "ended_at",
+            "current_speaker_id",
+            "messages",
+        ]
 
 
 class DebateListSerializer(serializers.ModelSerializer):
@@ -50,7 +59,16 @@ class DebateListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Debate
-        fields = ['id', 'topic', 'user_pro', 'user_con', 'winner', 'status', 'started_at', 'completed_at']
+        fields = [
+            "id",
+            "topic",
+            "user_pro",
+            "user_con",
+            "winner",
+            "status",
+            "started_at",
+            "completed_at",
+        ]
 
 
 class DebateDetailSerializer(serializers.ModelSerializer):
@@ -63,8 +81,15 @@ class DebateDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Debate
         fields = [
-            'id', 'topic', 'user_pro', 'user_con', 'winner',
-            'status', 'started_at', 'completed_at', 'rounds',
+            "id",
+            "topic",
+            "user_pro",
+            "user_con",
+            "winner",
+            "status",
+            "started_at",
+            "completed_at",
+            "rounds",
         ]
 
 
@@ -74,11 +99,21 @@ class JudgementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Judgement
         fields = [
-            'id', 'winner',
-            'argument_score_pro', 'rebuttal_score_pro', 'clarity_score_pro', 'persuasion_score_pro',
-            'argument_score_con', 'rebuttal_score_con', 'clarity_score_con', 'persuasion_score_con',
-            'reasoning', 'strongest_moment', 'coaching_tip_pro', 'coaching_tip_con',
-            'created_at',
+            "id",
+            "winner",
+            "argument_score_pro",
+            "rebuttal_score_pro",
+            "clarity_score_pro",
+            "persuasion_score_pro",
+            "argument_score_con",
+            "rebuttal_score_con",
+            "clarity_score_con",
+            "persuasion_score_con",
+            "reasoning",
+            "strongest_moment",
+            "coaching_tip_pro",
+            "coaching_tip_con",
+            "created_at",
         ]
 
 
@@ -88,7 +123,7 @@ class QueueStatusSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MatchQueue
-        fields = ['id', 'topic', 'status', 'joined_at', 'matched_at', 'debate_id']
+        fields = ["id", "topic", "status", "joined_at", "matched_at", "debate_id"]
 
     def get_debate_id(self, obj):
         return obj.debate_id
@@ -108,7 +143,7 @@ class DebateViewerSerializer(serializers.Serializer):
 
     class Meta:
         fields = ["id", "debate_id", "user", "status", "joined_at", "left_at"]
-    
+
     def get_debate_id(self, obj):
         return obj.debate_id
 
@@ -123,8 +158,12 @@ def serialize_messages_of_debate(*, messages: List[Message]) -> List[Dict]:
                 "round_id": round_obj.id,
                 "round_type": round_obj.round_type,
                 "order": round_obj.order,
-                "started_at": round_obj.started_at.isoformat() if round_obj.started_at else None,
-                "ended_at": round_obj.ended_at.isoformat() if round_obj.ended_at else None,
+                "started_at": round_obj.started_at.isoformat()
+                if round_obj.started_at
+                else None,
+                "ended_at": round_obj.ended_at.isoformat()
+                if round_obj.ended_at
+                else None,
                 "messages": [],
             }
             rounds_by_id[round_obj.id] = bucket

@@ -18,6 +18,7 @@ def handle_exception(func: callable) -> callable:
         except Exception as e:
             logger.error(f"Unexpected error occurred: {e=}", exc_info=True)
             return status_500(message="Something went wrong")
+
     return wrapper
 
 

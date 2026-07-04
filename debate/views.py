@@ -15,11 +15,11 @@ from debate.selectors import (
     get_user_debates,
     get_debate,
 )
-from debate.services import  (
+from debate.services import (
     dispute_judgement,
     get_user_debate_and_message,
     group_topics_by_category,
-    serialize_category_and_debate_rules
+    serialize_category_and_debate_rules,
 )
 from debate.serializers import (
     DebateListSerializer,
@@ -48,7 +48,10 @@ class DebateListView(APIView):
     @handle_exception
     def get(self, request):
         debates = get_user_debates(user=request.user)
-        return status_200(message="Debates fetched", data={"debates": DebateListSerializer(debates, many=True).data})
+        return status_200(
+            message="Debates fetched",
+            data={"debates": DebateListSerializer(debates, many=True).data},
+        )
 
 
 class OngoingDebateListView(APIView):
@@ -62,7 +65,7 @@ class OngoingDebateListView(APIView):
             message="Ongoing debates fetched",
             data={
                 "debates": DebateListSerializer(debates, many=True).data,
-            }
+            },
         )
 
 
@@ -75,8 +78,10 @@ class DebateDetailView(APIView):
         debate = get_debate(debate_id=debate_id)
         if request.user not in (debate.user_pro, debate.user_con):
             return status_400(message="You are not a participant in this debate")
-        return status_200(message="Debate fetched", data=DebateDetailSerializer(debate).data)
-    
+        return status_200(
+            message="Debate fetched", data=DebateDetailSerializer(debate).data
+        )
+
 
 class MyDebatesListView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -90,7 +95,10 @@ class MyDebatesListView(APIView):
             return status_200(message="Fetch Debate Messages", data={"messages": data})
 
         debates = get_user_debates(user=request.user)
-        return status_200(message="My debates fetched", data={"debates": DebateListSerializer(debates, many=True).data})
+        return status_200(
+            message="My debates fetched",
+            data={"debates": DebateListSerializer(debates, many=True).data},
+        )
 
 
 class MessageListView(APIView):
@@ -102,8 +110,13 @@ class MessageListView(APIView):
         if not debate_id:
             return status_400(message="Debate ID is required")
 
-        messages = get_messages_for_debate_and_user(debate_id=debate_id, user_id=request.user.id)
-        return status_200(message="Messages fetched", data={"messages": MessageSerializer(messages, many=True).data})
+        messages = get_messages_for_debate_and_user(
+            debate_id=debate_id, user_id=request.user.id
+        )
+        return status_200(
+            message="Messages fetched",
+            data={"messages": MessageSerializer(messages, many=True).data},
+        )
 
 
 class JudgementView(APIView):
@@ -116,10 +129,12 @@ class JudgementView(APIView):
         if request.user not in (debate.user_pro, debate.user_con):
             return status_400(message="You are not a participant in this debate")
         try:
-            judgement = Judgement.objects.select_related('winner').get(debate=debate)
+            judgement = Judgement.objects.select_related("winner").get(debate=debate)
         except Judgement.DoesNotExist:
             return status_400(message="Judgement not available yet")
-        return status_200(message="Judgement fetched", data=JudgementSerializer(judgement).data)
+        return status_200(
+            message="Judgement fetched", data=JudgementSerializer(judgement).data
+        )
 
 
 class DisputeView(APIView):
@@ -129,7 +144,9 @@ class DisputeView(APIView):
     @handle_exception
     def post(self, request, debate_id):
         judgement = dispute_judgement(user=request.user, debate_id=debate_id)
-        return status_200(message="Dispute processed", data=JudgementSerializer(judgement).data)
+        return status_200(
+            message="Dispute processed", data=JudgementSerializer(judgement).data
+        )
 
 
 class CategoryAndGroundRule(APIView):
@@ -140,4 +157,6 @@ class CategoryAndGroundRule(APIView):
     def get(self, request):
         categories = get_active_categories()
         categories, rules = serialize_category_and_debate_rules(categories=categories)
-        return status_200(message="Fetch Categories", data={"categories":categories, "rules": rules})
+        return status_200(
+            message="Fetch Categories", data={"categories": categories, "rules": rules}
+        )
