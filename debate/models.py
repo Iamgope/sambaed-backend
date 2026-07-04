@@ -94,6 +94,9 @@ class Judgement(models.Model):
     clarity_score_con = models.FloatField()
     persuasion_score_con = models.FloatField()
 
+    overall_score_pro = models.FloatField(default=0)
+    overall_score_con = models.FloatField(default=0)
+
     reasoning = models.TextField()
     strongest_moment = models.TextField()
     coaching_tip_pro = models.TextField()
