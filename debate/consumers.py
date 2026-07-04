@@ -367,10 +367,10 @@ class DebateConsumer(AsyncWebsocketConsumer):
             text_data=json.dumps({'type': 'round.advanced', 'round': event.get('data', {})})
         )
 
-    async def judgement(self, event):
+    async def debate_result(self, event):
         """Forward judgement group message → client as debate.completed."""
         await self.send(
-            text_data=json.dumps({'type': 'debate.completed', 'judgement': event.get('data', {})})
+            text_data=json.dumps({'type': 'debate_result', 'data': event.get('data', {})})
         )
 
     @websocket_catch_service_exception(default_message="Could not process debate completion")

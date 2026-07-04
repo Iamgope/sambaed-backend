@@ -30,7 +30,7 @@ def start_judgement_of_debate_and_share_result(debate_id: int, group_name: str):
     async_to_sync(channel_layer.group_send)(
         group_name,
         {
-            "type": "judgement",
+            "type": "debate_result",
             "data": JudgementSerializer(judgement).data,
         },
     )
