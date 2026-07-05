@@ -11,10 +11,30 @@ from django.conf import settings
 
 from base.events import send_queue_matched_event
 from base.exception import ServiceException
-from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus, ProOrCon, RoundType
-from debate.models import Category, Debate, DebateViewer, Judgement, Message, MatchQueue, Round, Topic
+from debate.constants import (
+    DebateStatus,
+    DebateViewerStatus,
+    MatchQueueStatus,
+    ProOrCon,
+    RoundType,
+)
+from debate.models import (
+    Category,
+    Debate,
+    DebateViewer,
+    Judgement,
+    Message,
+    MatchQueue,
+    Round,
+    Topic,
+)
 from debate import selectors
-from debate.serializers import CategorySerializer, DebateListSerializer, TopicSerializer, serialize_messages_of_debate
+from debate.serializers import (
+    CategorySerializer,
+    DebateListSerializer,
+    TopicSerializer,
+    serialize_messages_of_debate,
+)
 from debate.tasks import start_judgement_of_debate_and_share_result
 from users.constants import ApplicationConfigName
 from users.selectors import get_application_config_by_name
@@ -65,11 +85,17 @@ def join_queue(
         user=user, topic=topic, pro_or_con=pro_or_con, status=MatchQueueStatus.PENDING
     )
     bot_config = get_bot_config()
-    bot_queue_wait_seconds = bot_config.get("bot_queue_wait_sec", BOT_QUEUE_WAIT_SECONDS)
+    bot_queue_wait_seconds = bot_config.get(
+        "bot_queue_wait_sec", BOT_QUEUE_WAIT_SECONDS
+    )
     # Schedule bot fallback — if no human joins within the wait window, match with bot
     from debate.tasks import assign_bot_if_no_match
-    assign_bot_if_no_match.apply_async(args=[entry.id], countdown=bot_queue_wait_seconds)
+
+    assign_bot_if_no_match.apply_async(
+        args=[entry.id], countdown=bot_queue_wait_seconds
+    )
     return entry
+
 
 @transaction.atomic
 def _create_match(
@@ -95,7 +121,9 @@ def leave_queue(*, user: User) -> None:
     entry = selectors.get_active_queue_entry(user=user)
     if not entry:
         raise ServiceException(message="You are not in the queue")
-    selectors.set_match_queue_entry_status(entry=entry, status=MatchQueueStatus.CANCELLED)
+    selectors.set_match_queue_entry_status(
+        entry=entry, status=MatchQueueStatus.CANCELLED
+    )
 
 
 # ── Messages / Round progression ────────────────────────────────────────────
@@ -118,7 +146,9 @@ def submit_message_and_maybe_advance(
 
 
 @transaction.atomic
-def _try_advance_from_opening(*, debate: Debate, current_round: Round) -> Optional[Round]:
+def _try_advance_from_opening(
+    *, debate: Debate, current_round: Round
+) -> Optional[Round]:
     """Atomically advance to Rebuttal once both players have sent their opening message."""
     round_locked = Round.objects.select_for_update().get(id=current_round.id)
     if round_locked.ended_at:
@@ -130,8 +160,14 @@ def _try_advance_from_opening(*, debate: Debate, current_round: Round) -> Option
     now = timezone.now()
     selectors.mark_round_ended(round_obj=round_locked, ended_at=now)
     # Whoever sent their opening first opens REBUTTAL
-    first_msg = Message.objects.filter(round=round_locked).order_by('created_at').first()
-    first_speaker = first_msg.user if first_msg else _speaker_order(debate=debate, round_type=RoundType.REBUTTAL)[0]
+    first_msg = (
+        Message.objects.filter(round=round_locked).order_by("created_at").first()
+    )
+    first_speaker = (
+        first_msg.user
+        if first_msg
+        else _speaker_order(debate=debate, round_type=RoundType.REBUTTAL)[0]
+    )
     return selectors.create_next_round(
         debate=debate,
         round_type=RoundType.REBUTTAL,
@@ -158,7 +194,9 @@ def submit_message(*, user: User, debate_id: int, content: str) -> Message:
 
     if current_round.round_type == RoundType.OPENING:
         if selectors.user_has_message_in_round(round_obj=current_round, user=user):
-            raise ServiceException(message="You've already submitted your opening statement")
+            raise ServiceException(
+                message="You've already submitted your opening statement"
+            )
     elif not _is_user_turn(debate=debate, current_round=current_round, user=user):
         raise ServiceException(message="It is not your turn to submit")
 
@@ -209,9 +247,7 @@ def end_turn(*, user: User, debate_id: int) -> Optional[Round]:
     return None
 
 
-def _is_user_turn(
-    *, debate: Debate, current_round: Round, user: User
-) -> bool:
+def _is_user_turn(*, debate: Debate, current_round: Round, user: User) -> bool:
     return current_round.current_speaker_id == user.id
 
 
@@ -315,7 +351,9 @@ def dispute_judgement(*, user: User, debate_id: int) -> Judgement:
         data = _call_judge(debate=debate)
         return selectors.apply_judgement_outcome(debate=debate, data=data)
     except Exception as e:
-        logger.error("Dispute judging failed for debate %s: %s", debate.id, e, exc_info=True)
+        logger.error(
+            "Dispute judging failed for debate %s: %s", debate.id, e, exc_info=True
+        )
         selectors.set_debate_status(debate=debate, status=DebateStatus.COMPLETED)
         raise ServiceException(
             message="Dispute judging failed, please try again"
@@ -377,8 +415,22 @@ def auto_judge_debate(*, debate_id: int) -> Optional[Judgement]:
         )
         return judgement
     except Exception as e:
-        logger.error("Auto judging failed for debate %s: %s", debate.id, e, exc_info=True)
+        logger.error(
+            "Auto judging failed for debate %s: %s", debate.id, e, exc_info=True
+        )
         return None
+
+
+def schedule_debate_judgement(*, debate_id: int, group_name: str) -> None:
+    """Called when the client signals a debate is complete; kicks off judging if it hasn't already been."""
+    debate = selectors.get_debate_by_id(debate_id=debate_id)
+    if not debate or debate.status != DebateStatus.ONGOING:
+        return
+    if selectors.judgement_exists_for_debate(debate_id=debate_id):
+        return
+    start_judgement_of_debate_and_share_result.apply_async(
+        args=[debate_id, group_name], countdown=5
+    )
 
 
 def join_queue_outcome(
@@ -399,9 +451,7 @@ def join_queue_outcome(
         if not debate:
             raise ServiceException(message="Debate not found")
         opponent_id = (
-            debate.user_con_id
-            if user.id == debate.user_pro_id
-            else debate.user_pro_id
+            debate.user_con_id if user.id == debate.user_pro_id else debate.user_pro_id
         )
         return {
             "outcome": "matched",
@@ -415,11 +465,15 @@ def join_queue_outcome(
     }
 
 
-def get_pro_or_con(*, pro_or_con: Optional[str], topic_id: Optional[int], category_id: Optional[int]) -> ProOrCon:
+def get_pro_or_con(
+    *, pro_or_con: Optional[str], topic_id: Optional[int], category_id: Optional[int]
+) -> ProOrCon:
     if pro_or_con:
         return ProOrCon(pro_or_con.upper())
 
-    counts = selectors.get_pending_queue_counts_by_side(topic_id=topic_id, category_id=category_id)
+    counts = selectors.get_pending_queue_counts_by_side(
+        topic_id=topic_id, category_id=category_id
+    )
     pending_pro = counts.get(ProOrCon.PRO.value, 0)
     pending_con = counts.get(ProOrCon.CON.value, 0)
     if pending_pro > pending_con:
@@ -454,15 +508,21 @@ def create_debate_viewer(*, user: User, debate_id: int) -> DebateViewer:
     return debate_viewer
 
 
-def check_and_add_user_reaction(*, user: User, reaction: str, message_id: int, debate_id):
+def check_and_add_user_reaction(
+    *, user: User, reaction: str, message_id: int, debate_id
+):
     if not selectors.is_user_debate_viewer(user_id=user.id, debate_id=debate_id):
         raise ServiceException("You are not the viewer for this debate")
-    
-    return selectors.add_viewer_reaction(user_id=user.id, reaction=reaction, message_id=message_id)
+
+    return selectors.add_viewer_reaction(
+        user_id=user.id, reaction=reaction, message_id=message_id
+    )
 
 
 def get_debate_judge_config():
-    config = get_application_config_by_name(name=ApplicationConfigName.DEBATE_JUDGE.value)
+    config = get_application_config_by_name(
+        name=ApplicationConfigName.DEBATE_JUDGE.value
+    )
     return config.properties if config else {}
 
 
@@ -480,12 +540,14 @@ def get_or_create_bot_user() -> User:
     )
     if created:
         from users.models import UserProfile
+
         UserProfile.objects.create(user=user, is_bot=True)
     return user
 
 
 def get_bot_user_in_debate(*, debate: Debate) -> Optional[User]:
     from users.models import UserProfile
+
     profile = (
         UserProfile.objects.filter(
             user__in=[debate.user_pro_id, debate.user_con_id], is_bot=True
@@ -519,7 +581,9 @@ def _atomic_bot_submit(
     if not current_round:
         return None
 
-    is_bot_formal_turn = _is_user_turn(debate=debate, current_round=current_round, user=bot_user)
+    is_bot_formal_turn = _is_user_turn(
+        debate=debate, current_round=current_round, user=bot_user
+    )
 
     if current_round.round_type == RoundType.OPENING:
         # OPENING: simultaneous — bot sends once, whenever it's ready
@@ -538,12 +602,20 @@ def _atomic_bot_submit(
         # After bot sends its opener, check if the human has already sent theirs.
         # If both have now sent, advance to REBUTTAL (same logic as _try_advance_from_opening
         # but inlined here since we already hold the select_for_update lock on this round).
-        pro_sent = Message.objects.filter(round=current_round, user=debate.user_pro).exists()
-        con_sent = Message.objects.filter(round=current_round, user=debate.user_con).exists()
+        pro_sent = Message.objects.filter(
+            round=current_round, user=debate.user_pro
+        ).exists()
+        con_sent = Message.objects.filter(
+            round=current_round, user=debate.user_con
+        ).exists()
         if pro_sent and con_sent:
             now = timezone.now()
             selectors.mark_round_ended(round_obj=current_round, ended_at=now)
-            first_msg = Message.objects.filter(round=current_round).order_by('created_at').first()
+            first_msg = (
+                Message.objects.filter(round=current_round)
+                .order_by("created_at")
+                .first()
+            )
             first_speaker = first_msg.user if first_msg else debate.user_pro
             next_round = selectors.create_next_round(
                 debate=debate,
@@ -556,7 +628,9 @@ def _atomic_bot_submit(
         return message, None
 
     # REBUTTAL: hand the floor back to the human after bot sends
-    human_user = debate.user_con if bot_user.id == debate.user_pro.id else debate.user_pro
+    human_user = (
+        debate.user_con if bot_user.id == debate.user_pro.id else debate.user_pro
+    )
     selectors.set_round_current_speaker(
         round_obj=current_round, speaker=human_user, turn_started_at=timezone.now()
     )
@@ -618,11 +692,13 @@ def schedule_bot_response_if_needed(*, debate_id: int) -> None:
     if current_round.round_type == RoundType.REBUTTAL:
         # Only schedule when it's genuinely the bot's turn (current_speaker was just toggled to bot)
         if _is_user_turn(debate=debate, current_round=current_round, user=bot_user):
-            bot_respond.apply_async(args=[debate_id], countdown=random.randint(5, 12))
+            bot_respond.apply_async(args=[debate_id], countdown=random.randint(10, 20))
     elif current_round.round_type == RoundType.OPENING:
         # OPENING is simultaneous: schedule bot if it hasn't sent its opener yet.
-        if not selectors.user_has_message_in_round(round_obj=current_round, user=bot_user):
-            bot_respond.apply_async(args=[debate_id], countdown=random.randint(3, 7))
+        if not selectors.user_has_message_in_round(
+            round_obj=current_round, user=bot_user
+        ):
+            bot_respond.apply_async(args=[debate_id], countdown=random.randint(10, 20))
 
 
 @transaction.atomic
@@ -678,12 +754,18 @@ def match_with_bot(*, queue_id: int) -> None:
     transaction.on_commit(partial(send_queue_matched_event, entry, debate))
     # Bot sends its OPENING argument first so the user has something to respond to immediately
     from debate.tasks import bot_respond
-    transaction.on_commit(lambda:bot_respond.apply_async(args=[debate.id], countdown=random.randint(3, 7)))
 
+    transaction.on_commit(
+        lambda: bot_respond.apply_async(
+            args=[debate.id], countdown=random.randint(10, 20)
+        )
+    )
 
 
 def get_debate_ground_rules():
-    config = get_application_config_by_name(name=ApplicationConfigName.DEBATE_GROUND_RULES.value)
+    config = get_application_config_by_name(
+        name=ApplicationConfigName.DEBATE_GROUND_RULES.value
+    )
     properties = config.properties if config else {}
     rules = properties.get("rules", [])
     return rules

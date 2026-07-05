@@ -31,13 +31,14 @@ def get_topic_news_data_by_topic_id(*, topic_id: Optional[int]) -> TopicNews:
         raise ServiceException("Topic id is required")
     news = get_topic_news_by_topic_id(topic_id=topic_id)
     if not news:
-        raise ServiceException(f"No news exists for this topic id")
+        raise ServiceException("No news exists for this topic id")
     return news
 
 
 # --- Source fetchers. Each returns a list of normalized event dicts or [] on
 # missing credentials. Network/parse exceptions bubble up; the orchestrator
 # catches and skips the failing source so one bad source can't kill the batch.
+
 
 def _fetch_reddit_cmv(limit: int, time_filter: str) -> List[Dict]:
     cid = settings.REDDIT_CLIENT_ID
@@ -52,9 +53,7 @@ def _fetch_reddit_cmv(limit: int, time_filter: str) -> List[Dict]:
     reddit.read_only = True
 
     events: List[Dict] = []
-    for s in reddit.subreddit("changemyview").top(
-        time_filter=time_filter, limit=limit
-    ):
+    for s in reddit.subreddit("changemyview").top(time_filter=time_filter, limit=limit):
         if s.stickied:
             continue
         body = (s.selftext or "").strip()
@@ -63,29 +62,34 @@ def _fetch_reddit_cmv(limit: int, time_filter: str) -> List[Dict]:
         title = re.sub(r"^\s*CMV\s*[:\-]?\s*", "", s.title, flags=re.I).strip()
         thumbnail = getattr(s, "thumbnail", "") or ""
         image = thumbnail if thumbnail.startswith("http") else ""
-        events.append({
-            "event": title,
-            "context": body[:2000],
-            "url": f"https://www.reddit.com{s.permalink}",
-            "date": datetime.fromtimestamp(
-                s.created_utc, tz=timezone.utc
-            ).date().isoformat(),
-            "score": int(s.score),
-            "source": "reddit_cmv",
-            "has_context": bool(body and len(body) > 200),
-            "image_url": image,
-        })
+        events.append(
+            {
+                "event": title,
+                "context": body[:2000],
+                "url": f"https://www.reddit.com{s.permalink}",
+                "date": datetime.fromtimestamp(s.created_utc, tz=timezone.utc)
+                .date()
+                .isoformat(),
+                "score": int(s.score),
+                "source": "reddit_cmv",
+                "has_context": bool(body and len(body) > 200),
+                "image_url": image,
+            }
+        )
     return events
 
 
 def _fetch_article_text(url: str) -> str:
     """Fetch and extract article body text from a URL using trafilatura."""
     import trafilatura
+
     try:
         downloaded = trafilatura.fetch_url(url)
         if not downloaded:
             return ""
-        text = trafilatura.extract(downloaded, include_comments=False, include_tables=False)
+        text = trafilatura.extract(
+            downloaded, include_comments=False, include_tables=False
+        )
         return (text or "").strip()
     except Exception:
         return ""
@@ -142,16 +146,19 @@ def _fetch_gdelt(limit: int, time_filter: str) -> List[Dict]:
         seendate = art.get("seendate", "") or ""
         iso_date = (
             f"{seendate[:4]}-{seendate[4:6]}-{seendate[6:8]}"
-            if len(seendate) >= 8 else ""
+            if len(seendate) >= 8
+            else ""
         )
-        base.append({
-            "event": (art.get("title") or "").strip(),
-            "url": art.get("url", ""),
-            "date": iso_date,
-            "score": 0,
-            "source": "gdelt",
-            "image_url": (art.get("socialimage") or "").strip(),
-        })
+        base.append(
+            {
+                "event": (art.get("title") or "").strip(),
+                "url": art.get("url", ""),
+                "date": iso_date,
+                "score": 0,
+                "source": "gdelt",
+                "image_url": (art.get("socialimage") or "").strip(),
+            }
+        )
 
     # Fetch article bodies in parallel with a capped thread count.
     def _enrich(item: Dict) -> Dict:
@@ -197,16 +204,18 @@ def _fetch_guardian(limit: int, time_filter: str) -> List[Dict]:
     for art in (payload.get("results") or [])[:limit]:
         fields = art.get("fields", {}) or {}
         body = fields.get("bodyText") or fields.get("trailText") or ""
-        events.append({
-            "event": (art.get("webTitle") or "").strip(),
-            "context": body[:2000],
-            "url": art.get("webUrl", ""),
-            "date": (art.get("webPublicationDate") or "")[:10],
-            "score": 0,
-            "source": "guardian",
-            "has_context": bool(body and len(body) > 200),
-            "image_url": (fields.get("thumbnail") or "").strip(),
-        })
+        events.append(
+            {
+                "event": (art.get("webTitle") or "").strip(),
+                "context": body[:2000],
+                "url": art.get("webUrl", ""),
+                "date": (art.get("webPublicationDate") or "")[:10],
+                "score": 0,
+                "source": "guardian",
+                "has_context": bool(body and len(body) > 200),
+                "image_url": (fields.get("thumbnail") or "").strip(),
+            }
+        )
     return events
 
 
@@ -231,20 +240,20 @@ def _fetch_google_news_in(limit: int, time_filter: str) -> List[Dict]:
             d = ""
         description = (item.findtext("description") or "").strip()
         description = re.sub(r"<[^>]+>", " ", description)
-        media_url = item.find(
-            "{http://search.yahoo.com/mrss/}content"
-        )
+        media_url = item.find("{http://search.yahoo.com/mrss/}content")
         image = (media_url.get("url") or "") if media_url is not None else ""
-        events.append({
-            "event": title,
-            "context": description[:2000],
-            "url": link,
-            "date": d,
-            "score": 0,
-            "source": "google_news_in",
-            "has_context": False,
-            "image_url": image,
-        })
+        events.append(
+            {
+                "event": title,
+                "context": description[:2000],
+                "url": link,
+                "date": d,
+                "score": 0,
+                "source": "google_news_in",
+                "has_context": False,
+                "image_url": image,
+            }
+        )
     return events
 
 
@@ -264,17 +273,14 @@ def fetch_world_events(*, limit: int = 50, time_filter: str = "week") -> List[Di
     bad source can't kill the response.
     """
     if time_filter not in ALLOWED_TIME_FILTERS:
-        raise ServiceException(
-            f"time must be one of {sorted(ALLOWED_TIME_FILTERS)}"
-        )
+        raise ServiceException(f"time must be one of {sorted(ALLOWED_TIME_FILTERS)}")
     if not (1 <= limit <= 100):
         raise ServiceException("limit must be between 1 and 100")
 
     results: List[Dict] = []
     with ThreadPoolExecutor(max_workers=len(_SOURCES)) as ex:
         futures = {
-            ex.submit(fn, limit, time_filter): name
-            for name, fn in _SOURCES.items()
+            ex.submit(fn, limit, time_filter): name for name, fn in _SOURCES.items()
         }
         for fut in as_completed(futures):
             name = futures[fut]
@@ -334,18 +340,22 @@ def generate_perspective(*, event: Dict) -> Dict:
         model=PERSPECTIVE_MODEL,
         max_tokens=PERSPECTIVE_MAX_TOKENS,
         temperature=PERSPECTIVE_TEMPERATURE,
-        system=[{
-            "type": "text",
-            "text": PERSPECTIVE_SYSTEM_PROMPT,
-            "cache_control": {"type": "ephemeral"},
-        }],
-        messages=[{
-            "role": "user",
-            "content": PERSPECTIVE_USER_TEMPLATE.format(
-                event=event.get("event", ""),
-                context=event.get("context", ""),
-            ),
-        }],
+        system=[
+            {
+                "type": "text",
+                "text": PERSPECTIVE_SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
+        messages=[
+            {
+                "role": "user",
+                "content": PERSPECTIVE_USER_TEMPLATE.format(
+                    event=event.get("event", ""),
+                    context=event.get("context", ""),
+                ),
+            }
+        ],
     )
 
     raw = response.content[0].text if response.content else ""
@@ -397,38 +407,44 @@ def generate_perspectives_for_events(*, events: List[Dict]) -> Dict:
             stats["parse_errors"] += 1
             logger.warning(
                 "generate_perspective failed for %s: %s",
-                e.get("url"), exc, exc_info=True,
+                e.get("url"),
+                exc,
+                exc_info=True,
             )
             continue
         if result.get("_parse_error"):
             stats["parse_errors"] += 1
             logger.warning(
                 "Perspective parse error for %s: %s",
-                e.get("url"), result.get("_raw"),
+                e.get("url"),
+                result.get("_raw"),
             )
             continue
 
         debatable = bool(result.get("debatable"))
         view_1 = result.get("view_1") or {}
         view_2 = result.get("view_2") or {}
-        rows.append(Perspective(
-            event_title=(e.get("event") or "").strip(),
-            event_context=(e.get("context") or "")[:2000],
-            event_source=(e.get("source") or "")[:64],
-            event_date=(e.get("date") or "")[:10],
-            question=(result.get("question") or "").strip(),
-            context_2line=(result.get("context_2line") or "").strip(),
-            view_1_label=(view_1.get("label") or "").strip()[:64],
-            view_1_text=(view_1.get("view") or "").strip(),
-            view_2_label=(view_2.get("label") or "").strip()[:64],
-            view_2_text=(view_2.get("view") or "").strip(),
-            debatable=debatable,
-            drop_reason=(result.get("drop_reason") or "").strip(),
-            source_event_url=e.get("url") or "",
-            image_url=e.get("image_url") or "",
-            status=Perspective.STATUS_PENDING if debatable
-                   else Perspective.STATUS_DROPPED,
-        ))
+        rows.append(
+            Perspective(
+                event_title=(e.get("event") or "").strip(),
+                event_context=(e.get("context") or "")[:2000],
+                event_source=(e.get("source") or "")[:64],
+                event_date=(e.get("date") or "")[:10],
+                question=(result.get("question") or "").strip(),
+                context_2line=(result.get("context_2line") or "").strip(),
+                view_1_label=(view_1.get("label") or "").strip()[:64],
+                view_1_text=(view_1.get("view") or "").strip(),
+                view_2_label=(view_2.get("label") or "").strip()[:64],
+                view_2_text=(view_2.get("view") or "").strip(),
+                debatable=debatable,
+                drop_reason=(result.get("drop_reason") or "").strip(),
+                source_event_url=e.get("url") or "",
+                image_url=e.get("image_url") or "",
+                status=Perspective.STATUS_PENDING
+                if debatable
+                else Perspective.STATUS_DROPPED,
+            )
+        )
         if debatable:
             stats["generated"] += 1
         else:

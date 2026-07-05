@@ -9,11 +9,19 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
+
 from datetime import timedelta
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from project.celery_config import task_queues, task_routes, task_default_exchange, task_default_exchange_type, task_default_routing_key
+from project.celery_config import (
+    task_queues,
+    task_routes,
+    task_default_exchange,
+    task_default_exchange_type,
+    task_default_routing_key,
+)
+
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -29,34 +37,36 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = list(os.getenv("ALLOWED_HOSTS","localhost,127.0.0.1").split(","))
+ALLOWED_HOSTS = list(os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(","))
 
 CSRF_TRUSTED_ORIGINS = [
-    f"https://{host}" for host in ALLOWED_HOSTS if host not in ("localhost", "127.0.0.1")
+    f"https://{host}"
+    for host in ALLOWED_HOSTS
+    if host not in ("localhost", "127.0.0.1")
 ]
 
 
 # Application definition
 DEFAULT_INSTALLED_APPS = [
     "unfold",
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
 ]
 
 THIRD_PARTY_INSTALLED_APPS = [
-    'rest_framework',
+    "rest_framework",
     "rest_framework_simplejwt",
-    'channels',
+    "channels",
 ]
 
 LOCAL_INSTALLED_APPS = [
-    'authentication',
-    'quiz',
-    'debate',
+    "authentication",
+    "quiz",
+    "debate",
     "users",
     "news",
 ]
@@ -68,44 +78,44 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'base.middleware.AppVersionMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "base.middleware.AppVersionMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'project.urls'
+ROOT_URLCONF = "project.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
 # WSGI_APPLICATION = 'project.wsgi.application'
-ASGI_APPLICATION = 'project.asgi.application'
+ASGI_APPLICATION = "project.asgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
+    "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME", "mydatabase")  ,
+        "NAME": os.getenv("DB_NAME", "mydatabase"),
         "USER": os.getenv("DB_USER", "mydatabaseuser"),
         "PASSWORD": os.getenv("DB_PASSWORD", "mypassword"),
         "HOST": os.getenv("DB_HOST", "localhost"),
@@ -119,16 +129,16 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -136,7 +146,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
 TIME_ZONE = os.getenv("TIME_ZONE", "UTC")
 
@@ -148,23 +158,25 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_URL = "static/"
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
-MEDIA_URL = 'media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = "media/"
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
             # socket_timeout must exceed channels_redis brpop_timeout (5s).
             # redis-py 8.x default of 5s causes a race condition with BZPOPMIN.
-            'hosts': [{
-                'address': os.getenv('REDIS_URL', 'redis://localhost:6379'),
-                'socket_timeout': 30,
-                'socket_connect_timeout': 5,
-            }],
+            "hosts": [
+                {
+                    "address": os.getenv("REDIS_URL", "redis://localhost:6379"),
+                    "socket_timeout": 30,
+                    "socket_connect_timeout": 5,
+                }
+            ],
         },
     }
 }
@@ -201,10 +213,10 @@ GOOGLE_OAUTH_CONFIG = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=24*60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': True,
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=24 * 60),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 UNFOLD = {
@@ -213,11 +225,13 @@ UNFOLD = {
     "SIDEBAR": {
         "show_search": True,  # Search in applications and models names
         "show_all_applications": True,  # Dropdown with all applications and models
-    }
+    },
 }
 
 # Celery — broker: RabbitMQ (see docker-compose). Override via CELERY_BROKER_URL.
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "amqp://guest:guest@127.0.0.1:5672//")
+CELERY_BROKER_URL = os.getenv(
+    "CELERY_BROKER_URL", "amqp://guest:guest@127.0.0.1:5672//"
+)
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "rpc://")
 CELERY_TASK_DEFAULT_QUEUE = "default"
 CELERY_TASK_DEFAULT_EXCHANGE = task_default_exchange

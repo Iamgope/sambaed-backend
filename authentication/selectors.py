@@ -9,7 +9,9 @@ def get_user_by_email(*, email: str) -> Optional[User]:
 
 
 def get_taken_usernames(*, usernames: Iterable[str]) -> Set[str]:
-    return set(User.objects.filter(username__in=usernames).values_list("username", flat=True))
+    return set(
+        User.objects.filter(username__in=usernames).values_list("username", flat=True)
+    )
 
 
 def create_user(*, email: str, username: str, extra_data: Dict) -> User:

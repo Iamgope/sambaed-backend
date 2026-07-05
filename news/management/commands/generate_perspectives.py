@@ -15,8 +15,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **opts):
-        events = fetch_world_events(
-            limit=opts["limit"], time_filter=opts["time"]
-        )
+        events = fetch_world_events(limit=opts["limit"], time_filter=opts["time"])
         stats = generate_perspectives_for_events(events=events)
         self.stdout.write(repr(stats))

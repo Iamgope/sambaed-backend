@@ -15,7 +15,9 @@ def _get_app() -> firebase_admin.App:
     return firebase_admin.get_app()
 
 
-def send_push_notification(*, token: str, title: str, body: str, data: dict | None = None) -> str:
+def send_push_notification(
+    *, token: str, title: str, body: str, data: dict | None = None
+) -> str:
     _get_app()
     message = messaging.Message(
         notification=messaging.Notification(title=title, body=body),
@@ -42,10 +44,6 @@ def send_push_notifications_to_user(
     )
     response = messaging.send_each_for_multicast(multicast)
 
-    stale = [
-        devices[i].pk
-        for i, r in enumerate(response.responses)
-        if not r.success
-    ]
+    stale = [devices[i].pk for i, r in enumerate(response.responses) if not r.success]
     if stale:
         update_user_device_status(pk_ids=stale, is_active=False)

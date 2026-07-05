@@ -7,27 +7,49 @@ from typing import List, Optional
 from django.db.models import Count, Q, QuerySet
 from django.contrib.auth.models import User
 
-import debate
-from debate.models import Category, Debate, DebateViewer, Judgement, MatchQueue, Message, Round, Topic, ViewerReaction
-from debate.constants import DebateStatus, DebateViewerStatus, MatchQueueStatus, ProOrCon, RoundType
+from debate.models import (
+    Category,
+    Debate,
+    DebateViewer,
+    Judgement,
+    MatchQueue,
+    Message,
+    Round,
+    Topic,
+    ViewerReaction,
+)
+from debate.constants import (
+    DebateStatus,
+    DebateViewerStatus,
+    MatchQueueStatus,
+    ProOrCon,
+    RoundType,
+)
 
 
 # ── Topics & debates (read) ──────────────────────────────────────────────
+
 
 def get_active_topics(*, category_id: Optional[int]) -> QuerySet[Topic]:
     query_filter = Q(is_active=True)
     if category_id:
         query_filter &= Q(category_id=category_id)
 
-    return Topic.objects.select_related("category").filter(query_filter).order_by("priority")
+    return (
+        Topic.objects.select_related("category")
+        .filter(query_filter)
+        .order_by("priority")
+    )
 
 
 def get_debate(*, debate_id: int) -> Debate:
-    return Debate.objects.select_related("topic", "user_pro", "user_con", "winner").get(id=debate_id)
+    return Debate.objects.select_related("topic", "user_pro", "user_con", "winner").get(
+        id=debate_id
+    )
 
 
 def get_user_debates(*, user: User) -> QuerySet[Debate]:
-    query_filter = (Q(user_pro=user) | Q(user_con=user))
+    query_filter = Q(user_pro=user) | Q(user_con=user)
     return (
         Debate.objects.filter(query_filter, status=DebateStatus.COMPLETED)
         .select_related("topic", "user_pro", "user_con", "winner")
@@ -51,8 +73,13 @@ def get_debate_for_serializer(*, debate_id: int) -> Debate:
 
 # ── Rounds & messages (read) ─────────────────────────────────────────────
 
+
 def get_current_round(*, debate: Debate) -> Round | None:
-    return Round.objects.filter(debate=debate, ended_at__isnull=True).order_by("order").first()
+    return (
+        Round.objects.filter(debate=debate, ended_at__isnull=True)
+        .order_by("order")
+        .first()
+    )
 
 
 def get_messages_for_round(*, round_obj: Round) -> QuerySet[Message]:
@@ -69,11 +96,14 @@ def get_messages_for_debate_round_ordered(*, round_obj: Round) -> QuerySet[Messa
 
 # ── Match queue (read) ──────────────────────────────────────────────────
 
+
 def get_active_queue_entry(*, user: User) -> MatchQueue | None:
     return MatchQueue.objects.filter(user=user, status=MatchQueueStatus.PENDING).first()
 
 
-def get_pending_queue_counts_by_side(*, topic_id: Optional[int], category_id: Optional[int]) -> dict[str, int]:
+def get_pending_queue_counts_by_side(
+    *, topic_id: Optional[int], category_id: Optional[int]
+) -> dict[str, int]:
     query_filter = Q(status=MatchQueueStatus.PENDING)
     if topic_id:
         query_filter &= Q(topic_id=topic_id)
@@ -113,6 +143,7 @@ def get_latest_queue_entry(*, user: User) -> MatchQueue | None:
 
 # ── Match queue (write) ────────────────────────────────────────────────
 
+
 def get_topic_by_id(*, topic_id: int) -> Topic | None:
     return Topic.objects.filter(id=topic_id, is_active=True).first()
 
@@ -139,7 +170,11 @@ def get_topic_by_id_or_category_id(
         return topic
 
     if category_id:
-        return Topic.objects.filter(category_id=category_id, is_active=True).order_by("?").first()
+        return (
+            Topic.objects.filter(category_id=category_id, is_active=True)
+            .order_by("?")
+            .first()
+        )
     return Topic.objects.filter(is_active=True).order_by("?").first()
 
 
@@ -154,7 +189,9 @@ def create_match_queue_entry(
     )
 
 
-def set_match_queue_entry_status(*, entry: MatchQueue, status: MatchQueueStatus) -> None:
+def set_match_queue_entry_status(
+    *, entry: MatchQueue, status: MatchQueueStatus
+) -> None:
     entry.status = status
     entry.save(update_fields=["status"])
 
@@ -201,6 +238,7 @@ def create_debate_for_queue_match(
 
 
 # ── Messages & rounds (write) ───────────────────────────────────────────
+
 
 def create_message_in_round(
     *, debate: Debate, round_obj: Round, user: User, content: str
@@ -249,6 +287,11 @@ def user_has_message_in_round(*, round_obj: Round, user: User) -> bool:
 
 
 # ── Judgements (write) ────────────────────────────────────────────────
+
+
+def judgement_exists_for_debate(*, debate_id: int) -> bool:
+    return Judgement.objects.filter(debate_id=debate_id).exists()
+
 
 def apply_judgement_outcome(*, debate: Debate, data: dict) -> Judgement:
     from users.selectors import update_user_profile_after_debate
@@ -338,9 +381,10 @@ def update_debate_status(*, debate_id: int, status: DebateStatus) -> None:
 def update_match_queue_status(
     *, user_id: int, status: MatchQueueStatus, debate_id: int
 ) -> None:
-    MatchQueue.objects.filter(user_id=user_id, status=status, debate_id=debate_id).update(
-        status=status
-    )
+    MatchQueue.objects.filter(
+        user_id=user_id, status=status, debate_id=debate_id
+    ).update(status=status)
+
 
 def get_debates_by_status(*, status: DebateStatus) -> QuerySet[Debate]:
     return (
@@ -349,16 +393,20 @@ def get_debates_by_status(*, status: DebateStatus) -> QuerySet[Debate]:
         .order_by("-started_at")
     )
 
-def get_messages_for_debate_and_user(*, debate_id: int, user_id: int) -> QuerySet[Message]:
+
+def get_messages_for_debate_and_user(
+    *, debate_id: int, user_id: int
+) -> QuerySet[Message]:
     return (
-        Message.objects
-        .filter(debate_id=debate_id, user_id=user_id)
-        .select_related('user', 'round')
-        .order_by('created_at')
+        Message.objects.filter(debate_id=debate_id, user_id=user_id)
+        .select_related("user", "round")
+        .order_by("created_at")
     )
 
 
-def get_or_create_debate_viewer(*, user: User, debate_id: int, status: DebateViewerStatus) -> DebateViewer:
+def get_or_create_debate_viewer(
+    *, user: User, debate_id: int, status: DebateViewerStatus
+) -> DebateViewer:
     return DebateViewer.objects.get_or_create(
         user=user,
         debate_id=debate_id,
@@ -375,11 +423,12 @@ def is_user_debate_viewer(*, user_id: int, debate_id: int) -> bool:
         user_id=user_id, debate_id=debate_id, status=DebateViewerStatus.JOINED
     ).exist()
 
-def add_viewer_reaction(*, user_id: int, message_id: int, reaction: str) -> ViewerReaction:
+
+def add_viewer_reaction(
+    *, user_id: int, message_id: int, reaction: str
+) -> ViewerReaction:
     return ViewerReaction.objects.create(
-        user_id=user_id,
-        message_id=message_id,
-        reaction=reaction
+        user_id=user_id, message_id=message_id, reaction=reaction
     )
 
 
@@ -393,4 +442,6 @@ def get_debate_by_user_and_id(*, user: User, debate_id: int) -> Debate:
 
 
 def get_messages_by_debate_id(*, debate_id: int) -> List[Message]:
-    return Message.objects.select_related("round", "debate", "user").filter(debate_id=debate_id)
+    return Message.objects.select_related("round", "debate", "user").filter(
+        debate_id=debate_id
+    )
