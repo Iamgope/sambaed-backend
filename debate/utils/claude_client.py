@@ -237,47 +237,53 @@ class ClaudeJudgeClient:
 
     def judge(self, *, transcript: str, judge_config: Dict) -> dict:
         model = judge_config.get("model", "claude-haiku-4-5-20251001")
+        reasoning_text = ""
+        scoring_text = ""
 
-        # ── Pass 1: Reasoning ──────────────────────────────────────────────────
-        reasoning_system = judge_config.get("reasoning_prompt", _REASONING_PROMPT)
-        reasoning_text = self._call(
-            system=reasoning_system,
-            user_message=transcript,
-            model=model,
-            max_tokens=768,
-        )
-        logger.debug("Judge reasoning pass:\n%s", reasoning_text)
-
-        # ── Pass 2: Scoring ────────────────────────────────────────────────────
-        scoring_system = judge_config.get("scoring_prompt", _SCORING_PROMPT)
-        scoring_user_message = "\n\n".join([
-            transcript,
-            "--- YOUR PRIOR ANALYSIS ---",
-            reasoning_text,
-            "--- END ANALYSIS ---",
-            "Now produce the JSON scores. They must be consistent with your analysis above.",
-        ])
-        scoring_text = self._call(
-            system=scoring_system,
-            user_message=scoring_user_message,
-            model=model,
-            max_tokens=768,
-        )
-        logger.debug("Judge scoring pass:\n%s", scoring_text)
-
-        # ── Parse & validate ───────────────────────────────────────────────────
         try:
+            # ── Pass 1: Reasoning ──────────────────────────────────────────────
+            reasoning_system = judge_config.get("reasoning_prompt", _REASONING_PROMPT)
+            reasoning_text = self._call(
+                system=reasoning_system,
+                user_message=transcript,
+                model=model,
+                max_tokens=768,
+            )
+            logger.debug("Judge reasoning pass:\n%s", reasoning_text)
+            if not reasoning_text:
+                raise ValueError("Pass 1 (reasoning) returned an empty response")
+
+            # ── Pass 2: Scoring ────────────────────────────────────────────────
+            scoring_system = judge_config.get("scoring_prompt", _SCORING_PROMPT)
+            scoring_user_message = "\n\n".join([
+                transcript,
+                "--- YOUR PRIOR ANALYSIS ---",
+                reasoning_text,
+                "--- END ANALYSIS ---",
+                "Now produce the JSON scores. They must be consistent with your analysis above.",
+            ])
+            scoring_text = self._call(
+                system=scoring_system,
+                user_message=scoring_user_message,
+                model=model,
+                max_tokens=768,
+            )
+            logger.debug("Judge scoring pass:\n%s", scoring_text)
+            if not scoring_text:
+                raise ValueError("Pass 2 (scoring) returned an empty response")
+
+            # ── Parse & validate ───────────────────────────────────────────────
             json_text = _extract_json(scoring_text)
             data = json.loads(json_text)
             _validate_output(data)
+
         except Exception as exc:
             logger.error(
-                "Judge output parse/validate failed.\n"
-                "Reasoning:\n%s\n\nScoring output:\n%s",
-                reasoning_text,
-                scoring_text,
+                "Judge failed.\nReasoning:\n%s\n\nScoring output:\n%s",
+                reasoning_text or "<not reached>",
+                scoring_text or "<not reached>",
             )
-            raise ValueError(f"Failed to parse judge output: {exc}") from exc
+            raise ValueError(f"Failed to judge debate: {exc}") from exc
 
         return data
 

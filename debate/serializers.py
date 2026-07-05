@@ -77,6 +77,9 @@ class JudgementSerializer(serializers.ModelSerializer):
             'id', 'winner',
             'argument_score_pro', 'rebuttal_score_pro', 'clarity_score_pro', 'persuasion_score_pro',
             'argument_score_con', 'rebuttal_score_con', 'clarity_score_con', 'persuasion_score_con',
+            'overall_score_pro', 'overall_score_con',
+            'rating_delta_pro', 'rating_delta_con',
+            'xp_delta_pro', 'xp_delta_con',
             'reasoning', 'strongest_moment', 'coaching_tip_pro', 'coaching_tip_con',
             'created_at',
         ]

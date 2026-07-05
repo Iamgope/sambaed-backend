@@ -12,7 +12,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     class Meta:
         model = UserProfile
-        fields = ['user', 'elo_rating', 'total_debates', 'wins', 'losses', "streak", "bio", "profile_pic"]
+        fields = ['user', 'elo_rating', 'xp', 'total_debates', 'wins', 'losses', 'streak', 'bio', 'profile_pic']
 
 
 class UserFeedbackSerializer(serializers.ModelSerializer):

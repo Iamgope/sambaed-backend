@@ -323,18 +323,28 @@ def dispute_judgement(*, user: User, debate_id: int) -> Judgement:
 
 
 def force_end_debate(*, debate_id: int) -> bool:
-    """Close the active round so the judge can run. Returns True if it did work."""
-    debate = selectors.get_debate_by_id(debate_id=debate_id)
-    if not debate or debate.status != DebateStatus.ONGOING:
-        logger.info("[JUDGE] force_end_debate: debate %s not ONGOING, skip", debate_id)
-        return False
-    current_round = selectors.get_current_round(debate=debate)
-    if not current_round or current_round.ended_at:
-        logger.info("[JUDGE] force_end_debate: no open round for debate %s, skip", debate_id)
-        return False
-    selectors.mark_round_ended(round_obj=current_round, ended_at=timezone.now())
-    logger.info("[JUDGE] force_end_debate: closed round %s for debate %s", current_round.id, debate_id)
-    return True
+    """Close the active round so the judge can run. Returns True if it did work.
+
+    Uses select_for_update inside an atomic block to prevent both players'
+    simultaneous time_expired events from each triggering a separate judge run.
+    """
+    with transaction.atomic():
+        debate = selectors.get_debate_by_id(debate_id=debate_id)
+        if not debate or debate.status != DebateStatus.ONGOING:
+            logger.info("[JUDGE] force_end_debate: debate %s not ONGOING, skip", debate_id)
+            return False
+        current_round = (
+            Round.objects.select_for_update()
+            .filter(debate=debate, ended_at__isnull=True)
+            .order_by("order")
+            .first()
+        )
+        if not current_round:
+            logger.info("[JUDGE] force_end_debate: no open round for debate %s, skip", debate_id)
+            return False
+        selectors.mark_round_ended(round_obj=current_round, ended_at=timezone.now())
+        logger.info("[JUDGE] force_end_debate: closed round %s for debate %s", current_round.id, debate_id)
+        return True
 
 
 def auto_judge_debate(*, debate_id: int) -> Optional[Judgement]:
@@ -347,6 +357,10 @@ def auto_judge_debate(*, debate_id: int) -> Optional[Judgement]:
     if debate.status != DebateStatus.ONGOING:
         logger.warning("[JUDGE] debate %s has status=%s, expected ONGOING — skipping", debate_id, debate.status)
         return None
+    existing = Judgement.objects.filter(debate=debate).first()
+    if existing:
+        logger.info("[JUDGE] debate %s already judged — skipping duplicate run", debate_id)
+        return existing
     logger.info("[JUDGE] building transcript and calling judge — debate=%s", debate_id)
     try:
         data = _call_judge(debate=debate)
