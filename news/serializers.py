@@ -16,8 +16,13 @@ class PerspectiveSerializer(serializers.ModelSerializer):
     class Meta:
         model = Perspective
         fields = (
-            "id", "status", "debatable", "drop_reason",
-            "article", "perspective", "created_at",
+            "id",
+            "status",
+            "debatable",
+            "drop_reason",
+            "article",
+            "perspective",
+            "created_at",
         )
 
     def get_article(self, obj):

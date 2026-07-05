@@ -22,60 +22,59 @@ class GoogleOAuth:
 
     def google_get_user_info_from_id_token(self, id_token: str) -> Dict[str, Any]:
         # Reference: https://developers.google.com/identity/sign-in/web/backend-auth#verify-the-integrity-of-the-id-token
-        response = requests.get(self.id_token_info_url, params={'id_token': id_token})
+        response = requests.get(self.id_token_info_url, params={"id_token": id_token})
 
         if not response.ok:
-            raise ServiceException('Failed to validate id_token with Google.')
+            raise ServiceException("Failed to validate id_token with Google.")
 
         payload = response.json()
 
-        if payload.get('aud') != self.client_id:
-            raise ServiceException('Invalid id_token audience.')
+        if payload.get("aud") != self.client_id:
+            raise ServiceException("Invalid id_token audience.")
 
         return payload
 
     def google_get_access_token(self, code: str) -> str:
         # Reference: https://developers.google.com/identity/protocols/oauth2/web-server#obtainingaccesstokens
         data = {
-            'code': code,
-            'client_id': self.client_id,
-            'client_secret': self.client_secret,
-            'redirect_uri': self.redirect_uri,
-            'grant_type': 'authorization_code'
+            "code": code,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "redirect_uri": self.redirect_uri,
+            "grant_type": "authorization_code",
         }
 
         response = requests.post(self.access_token_obtain_url, data=data)
         logger.info(f"{response.text=}, {response.status_code=}")
         if not response.ok:
-            raise ServiceException('Failed to obtain access token from Google.')
+            raise ServiceException("Failed to obtain access token from Google.")
 
-        access_token = response.json()['access_token']
+        access_token = response.json()["access_token"]
 
         return access_token
 
     def google_get_user_info(self, access_token: str) -> Dict[str, Any]:
         # Reference: https://developers.google.com/identity/protocols/oauth2/web-server#callinganapi
         response = requests.get(
-            self.user_info_url,
-            params={'access_token': access_token}
+            self.user_info_url, params={"access_token": access_token}
         )
 
         if not response.ok:
-            raise Exception('Failed to obtain user info from Google.')
+            raise Exception("Failed to obtain user info from Google.")
 
         return response.json()
 
     def create_google_login_url(self):
         params = {
-            'client_id': self.client_id,
-            'redirect_uri': self.redirect_uri,
-            'response_type': 'code',
-            'scope': 'openid email profile',
-            'prompt': 'select_account',
+            "client_id": self.client_id,
+            "redirect_uri": self.redirect_uri,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "prompt": "select_account",
             "access_type": "offline",
         }
 
-        return f'{self.authorization_url}?{urlencode(params)}'
+        return f"{self.authorization_url}?{urlencode(params)}"
 
 
 google_oauth = GoogleOAuth(settings.GOOGLE_OAUTH_CONFIG)

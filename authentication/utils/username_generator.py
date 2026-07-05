@@ -1,13 +1,36 @@
 import secrets
 
 _DEFAULT_ADJECTIVES = [
-    "Eloquent", "Bold", "Sharp", "Fierce", "Logical", "Clever", "Candid",
-    "Precise", "Astute", "Vivid", "Lucid", "Stoic", "Keen", "Witty", "Calm",
+    "Eloquent",
+    "Bold",
+    "Sharp",
+    "Fierce",
+    "Logical",
+    "Clever",
+    "Candid",
+    "Precise",
+    "Astute",
+    "Vivid",
+    "Lucid",
+    "Stoic",
+    "Keen",
+    "Witty",
+    "Calm",
 ]
 
 _DEFAULT_NOUNS = [
-    "Orator", "Debater", "Arguer", "Speaker", "Advocate", "Thinker",
-    "Reasoner", "Scholar", "Critic", "Sage", "Voice", "Pundit",
+    "Orator",
+    "Debater",
+    "Arguer",
+    "Speaker",
+    "Advocate",
+    "Thinker",
+    "Reasoner",
+    "Scholar",
+    "Critic",
+    "Sage",
+    "Voice",
+    "Pundit",
 ]
 
 

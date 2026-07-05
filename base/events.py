@@ -5,7 +5,6 @@ from debate.models import Debate, MatchQueue
 from debate.serializers import DebateListSerializer
 
 
-
 def send_queue_matched_event(match_entry: MatchQueue, debate: Debate):
     # Notify the waiting user over their personal WebSocket group
     channel_layer = get_channel_layer()
